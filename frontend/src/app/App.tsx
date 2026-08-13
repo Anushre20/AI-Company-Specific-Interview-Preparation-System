@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { checkBackend, getCompanies, getQuestions } from "../api";
 import {
   LayoutDashboard, Building2, BookOpen, MessageSquare, HelpCircle,
   TrendingUp, FileText, Bookmark, Settings, Search, Bell, Star,
@@ -742,15 +743,38 @@ function CompaniesPage({ onNav }: { onNav: (p: Page) => void }) {
   const [sector, setSector] = useState("All");
   const [selected, setSelected] = useState<string | null>(null);
   const [roundTab, setRoundTab] = useState(0);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = COMPANIES_DATA.filter(c => {
+  useEffect(() => {
+    getCompanies()
+      .then((data) => {
+        setCompanies(data);
+      })
+      .catch((error) => {
+        console.error("Failed to load companies:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const filtered = companies.filter(c => {
     const ms = c.name.toLowerCase().includes(search.toLowerCase());
     const md = diff === "All" || c.difficulty === diff;
     const msc = sector === "All" || c.sector === sector;
     return ms && md && msc;
   });
 
-  const co = selected ? COMPANIES_DATA.find(c => c.id === selected) : null;
+  const co = selected ? companies.find(c => c.id === selected) : null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-slate-500">Loading companies...</p>
+      </div>
+    );
+  }
 
   if (co) {
     return (
@@ -970,9 +994,54 @@ function CompaniesPage({ onNav }: { onNav: (p: Page) => void }) {
 function PreparationPage() {
   const [coId, setCoId] = useState("google");
   const [roundTab, setRoundTab] = useState(0);
-  const co = COMPANIES_DATA.find(c => c.id === coId)!;
-  const roundIconMap: Record<string, typeof Code2> = { OA: Hash, Technical: Code2, Managerial: Briefcase, HR: Users };
-  const roundColorMap: Record<string, string> = { OA: "bg-cyan-50 text-cyan-700", Technical: "bg-indigo-50 text-indigo-700", Managerial: "bg-orange-50 text-orange-700", HR: "bg-pink-50 text-pink-700" };
+
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCompanies()
+      .then((data) => {
+        setCompanies(data);
+      })
+      .catch((error) => {
+        console.error("Failed to load companies:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const co = companies.find(c => c.id === coId);
+
+  const roundIconMap: Record<string, typeof Code2> = {
+    OA: Hash,
+    Technical: Code2,
+    Managerial: Briefcase,
+    HR: Users
+  };
+
+  const roundColorMap: Record<string, string> = {
+    OA: "bg-cyan-50 text-cyan-700",
+    Technical: "bg-indigo-50 text-indigo-700",
+    Managerial: "bg-orange-50 text-orange-700",
+    HR: "bg-pink-50 text-pink-700"
+  };
+
+    if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-slate-500">Loading preparation data...</p>
+      </div>
+    );
+  }
+
+  if (!co) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-slate-500">Company data not found.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -983,7 +1052,11 @@ function PreparationPage() {
         </div>
         <select value={coId} onChange={e => { setCoId(e.target.value); setRoundTab(0); }}
           className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-          {COMPANIES_DATA.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {companies.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -1096,7 +1169,25 @@ function MockInterviewPage() {
   const [running, setRunning] = useState(false);
   const [scores, setScores] = useState<number[]>([]);
   const [selCo, setSelCo] = useState("google");
+
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+    useEffect(() => {
+    Promise.all([getCompanies(), getQuestions()])
+      .then(([companyData, questionData]) => {
+        setCompanies(companyData);
+        setQuestions(questionData);
+      })
+      .catch((error) => {
+        console.error("Failed to load mock interview data:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     if (running && timeLeft > 0) {
@@ -1111,7 +1202,7 @@ function MockInterviewPage() {
   const startInterview = () => {
     setPhase("interview"); setQIdx(0); setAnswer(""); setFollowUpAnswer("");
     setShowFollowUp(false); setScores([]);
-    setTimeLeft(MOCK_QUESTIONS[0].timeLimit); setRunning(true);
+    setTimeLeft(questions[0].timeLimit); setRunning(true);
   };
 
   const submitAnswer = () => { setRunning(false); setShowFollowUp(true); };
@@ -1120,16 +1211,32 @@ function MockInterviewPage() {
     const sc = Math.min(95, Math.max(48, (answer.length > 80 ? 18 : 8) + (followUpAnswer.length > 40 ? 12 : 4) + Math.floor(Math.random() * 25) + 40));
     const newScores = [...scores, sc];
     setScores(newScores);
-    if (qIdx < MOCK_QUESTIONS.length - 1) {
+    if (qIdx < questions.length - 1) {
       const ni = qIdx + 1;
       setQIdx(ni); setAnswer(""); setFollowUpAnswer("");
-      setShowFollowUp(false); setTimeLeft(MOCK_QUESTIONS[ni].timeLimit); setRunning(true);
+      setShowFollowUp(false); setTimeLeft(questions[ni].timeLimit); setRunning(true);
     } else { setPhase("results"); }
   };
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 0;
-  const q = MOCK_QUESTIONS[qIdx] || MOCK_QUESTIONS[0];
+  const q = questions[qIdx] || questions[0];
+
+    if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-slate-500">Loading interview data...</p>
+      </div>
+    );
+  }
+
+  if (!questions.length || !companies.length) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-red-500">Unable to load interview data.</p>
+      </div>
+    );
+  }
 
   if (phase === "setup") return (
     <div className="space-y-5 max-w-2xl">
@@ -1144,7 +1251,11 @@ function MockInterviewPage() {
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Target Company</label>
             <select value={selCo} onChange={e => setSelCo(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              {COMPANIES_DATA.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {companies.map(c => (
+  <option key={c.id} value={c.id}>
+    {c.name}
+  </option>
+))}
             </select>
           </div>
           <div>
@@ -1182,7 +1293,7 @@ function MockInterviewPage() {
         <div className="space-y-3">
           {[["Google", "SWE", 74, "Today, 2:30 PM", "+8"], ["Amazon", "SDE", 66, "Yesterday", "+12"], ["Microsoft", "SWE", 58, "3 days ago", "+5"]].map(([co, role, sc, date, imp]) => (
             <div key={String(co)} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <CompanyAvatar company={COMPANIES_DATA.find(c => c.name === co)!} />
+              <CompanyAvatar company={companies.find(c => c.name === co)!} />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-800">{co} · {role}</p>
                 <p className="text-xs text-slate-500">{date}</p>
@@ -1219,7 +1330,7 @@ function MockInterviewPage() {
             <p className="text-xs text-slate-500 mb-1">Question {i + 1}</p>
             <p className="text-3xl font-extrabold text-slate-900">{sc}</p>
             <p className="text-xs text-slate-400 mt-1">/100</p>
-            <p className="text-xs text-indigo-600 mt-1 font-medium">{MOCK_QUESTIONS[i]?.tags[0]}</p>
+            <p className="text-xs text-indigo-600 mt-1 font-medium">{questions[i]?.tags[0]}</p>
           </div>
         ))}
       </div>
@@ -1267,9 +1378,9 @@ function MockInterviewPage() {
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center gap-3">
         <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${(qIdx / MOCK_QUESTIONS.length) * 100}%` }} />
+          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${(qIdx / questions.length) * 100}%` }} />
         </div>
-        <span className="text-sm text-slate-500 font-medium flex-shrink-0">Q {qIdx + 1} / {MOCK_QUESTIONS.length}</span>
+        <span className="text-sm text-slate-500 font-medium flex-shrink-0">Q {qIdx + 1} / {questions.length}</span>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -1320,7 +1431,7 @@ function MockInterviewPage() {
               className="w-full h-24 border border-slate-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             <button onClick={nextQ} disabled={followUpAnswer.length < 5}
               className="w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-              {qIdx < MOCK_QUESTIONS.length - 1 ? "Next Question →" : "Finish Interview →"}
+              {qIdx < questions.length - 1 ? "Next Question →" : "Finish Interview →"}
             </button>
           </div>
         )}
@@ -1981,6 +2092,26 @@ export default function App() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+    useEffect(() => {
+    checkBackend()
+      .then((data) => {
+        console.log("Backend response:", data);
+      })
+      .catch((error) => {
+        console.error("Backend connection failed:", error);
+      });
+  }, []);
+
+  useEffect(() => {
+  getCompanies()
+    .then((data) => {
+      console.log("Companies from backend:", data);
+    })
+    .catch((error) => {
+      console.error("Failed to fetch companies:", error);
+    });
+}, []);
 
   const isApp = page !== "landing";
 
