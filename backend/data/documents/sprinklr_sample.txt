@@ -1,0 +1,20 @@
+This is a SAMPLE document for testing the InterviewIQ RAG pipeline.
+
+Company: Sprinklr
+Role: Software Engineer Intern
+Source Type: Sample Interview Experience
+
+Reported interview topics in this sample include data structures,
+algorithms, problem solving, object oriented programming and
+behavioral questions.
+
+Candidates may be asked to explain their approach to coding problems,
+discuss time and space complexity, and explain projects mentioned on
+their resume.
+
+Behavioral discussions may focus on teamwork, communication,
+problem solving and previous project experiences.
+
+This document is only synthetic test data for the InterviewIQ
+development pipeline. It is NOT an actual Sprinklr interview report
+and must not be presented to users as factual interview information.
