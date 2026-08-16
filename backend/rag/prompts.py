@@ -43,3 +43,77 @@ IMPORTANT:
 
 ANSWER:
 """
+
+def build_interview_intelligence_prompt(company, context):
+    return f"""
+Analyze the available interview evidence for the company: {company}
+
+Your task is to produce an evidence-grounded interview intelligence report.
+
+Use ONLY the provided evidence.
+
+Do NOT treat candidate-reported experiences as guaranteed company policy.
+
+Identify:
+
+1. Likely interview rounds
+2. Topics associated with each round
+3. Frequently reported interview areas
+4. Evidence supporting each round
+5. Confidence level for each prediction
+6. Important variations between reports
+7. Any information that is insufficient or unknown
+
+For every predicted round, classify confidence as:
+- High
+- Medium
+- Low
+
+Confidence should depend on the strength and consistency of the available evidence.
+
+IMPORTANT:
+- Official sources should be treated as official information.
+- Candidate reports should be treated as reported experiences.
+- Predictions must be explicitly identified as predictions.
+- Do not invent missing rounds, eligibility requirements, salaries, durations, or questions.
+- Interview processes may vary by role, location, hiring cycle, and year.
+
+Return ONLY valid JSON in this structure:
+
+{{
+    "company": "{company}",
+    "rounds": [
+        {{
+            "type": "OA | Technical | Managerial | HR | Other",
+            "name": "round name",
+            "confidence": "High | Medium | Low",
+            "evidence": [
+                "short evidence-based explanation"
+            ],
+            "topics": [
+                {{
+                    "name": "topic",
+                    "confidence": "High | Medium | Low"
+                }}
+            ]
+        }}
+    ],
+    "frequent_topics": [
+        {{
+            "name": "topic",
+            "confidence": "High | Medium | Low"
+        }}
+    ],
+    "variations": [
+        "important variation found in the evidence"
+    ],
+    "unknowns": [
+        "information that cannot be determined from the evidence"
+    ],
+    "disclaimer": "This is an evidence-based prediction and not an official company interview process."
+}}
+
+EVIDENCE:
+
+{context}
+"""

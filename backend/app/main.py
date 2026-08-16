@@ -48,6 +48,11 @@ class RAGRequest(BaseModel):
     source_type: str | None = None
     top_k: int = 3
 
+class InterviewIntelligenceRequest(BaseModel):
+    company: str
+    role: str | None = None
+    top_k: int = 10
+
 @app.post("/api/rag/ask")
 def ask_rag(request: RAGRequest):
 
@@ -56,6 +61,19 @@ def ask_rag(request: RAGRequest):
         company=request.company,
         role=request.role,
         source_type=request.source_type,
+        top_k=request.top_k
+    )
+
+    return result
+
+@app.post("/api/interview-intelligence")
+def interview_intelligence(
+    request: InterviewIntelligenceRequest
+):
+
+    result = rag_pipeline.analyze_interview_process(
+        company=request.company,
+        role=request.role,
         top_k=request.top_k
     )
 

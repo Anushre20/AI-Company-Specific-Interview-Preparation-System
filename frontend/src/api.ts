@@ -57,3 +57,27 @@ export async function askRAG(
 
   return response.json();
 }
+
+export async function getInterviewIntelligence(
+  company: string,
+  role?: string,
+  top_k: number = 10
+) {
+  const response = await fetch(`${API_URL}/api/interview-intelligence`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      company,
+      role,
+      top_k,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to get interview intelligence");
+  }
+
+  return response.json();
+}

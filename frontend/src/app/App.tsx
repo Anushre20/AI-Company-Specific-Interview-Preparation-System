@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { checkBackend, getCompanies, getQuestions, askRAG } from "../api";
+import {
+  checkBackend,
+  getCompanies,
+  getQuestions,
+  askRAG,
+  getInterviewIntelligence
+} from "../api";
 import {
   LayoutDashboard, Building2, BookOpen, MessageSquare, HelpCircle,
   TrendingUp, FileText, Bookmark, Settings, Search, Bell, Star,
@@ -999,6 +1005,9 @@ function PreparationPage() {
   const [aiSources, setAiSources] = useState<any[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [interviewIntelligence, setInterviewIntelligence] = useState<any>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+  const [intelligenceError, setIntelligenceError] = useState("");
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1076,6 +1085,33 @@ function PreparationPage() {
     }
   }
 
+  async function loadInterviewIntelligence() {
+    const company = companies.find((c) => c.id === coId);
+
+    if (!company) return;
+
+    setIntelligenceLoading(true);
+    setIntelligenceError("");
+
+    try {
+      const result = await getInterviewIntelligence(
+        company.name,
+        "SDE / Software Engineering",
+        10
+      );
+
+      setInterviewIntelligence(result);
+
+      console.log("Interview Intelligence:", result);
+    } catch (error) {
+      console.error("Interview intelligence request failed:", error);
+      setIntelligenceError(
+        "Unable to load interview intelligence."
+      );
+    } finally {
+      setIntelligenceLoading(false);
+    }
+  }
   return (
     <div className="space-y-5">
           <div className="bg-white rounded-2xl border border-indigo-100 p-6 shadow-sm">
@@ -1194,9 +1230,65 @@ function PreparationPage() {
             </option>
           ))}
         </select>
+
+        <button
+          onClick={loadInterviewIntelligence}
+          disabled={intelligenceLoading}
+          className="bg-violet-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-700 disabled:opacity-50"
+        >
+          {intelligenceLoading
+            ? "Analyzing..."
+            : "Analyze with AI"}
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              {intelligenceError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+          {intelligenceError}
+        </div>
+      )}
+
+      {interviewIntelligence?.analysis && (
+        <div className="bg-violet-50 border border-violet-100 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain size={18} className="text-violet-600" />
+            <h2 className="font-bold text-slate-900">
+              AI Interview Intelligence
+            </h2>
+          </div>
+
+          <p className="text-xs text-slate-500 mb-3">
+            Evidence-based analysis generated from the available interview sources.
+          </p>
+
+<pre className="text-xs bg-white rounded-xl p-4 overflow-auto max-h-96 border border-violet-100 whitespace-pre-wrap">
+  {(() => {
+    try {
+      let raw = interviewIntelligence.analysis;
+
+      // If the response is already an object
+      if (typeof raw === "object") {
+        return JSON.stringify(raw, null, 2);
+      }
+
+      // Remove ```json and ``` if the LLM returned a code block
+      raw = raw
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      const parsed = JSON.parse(raw);
+
+      return JSON.stringify(parsed, null, 2);
+    } catch (error) {
+      return String(interviewIntelligence.analysis);
+    }
+  })()}
+</pre>
+        </div>
+      )}
         <div className="flex items-center gap-3 mb-5">
           <CompanyAvatar company={co} />
           <div>
