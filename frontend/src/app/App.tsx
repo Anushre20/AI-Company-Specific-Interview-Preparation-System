@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { checkBackend, getCompanies, getQuestions } from "../api";
+import { checkBackend, getCompanies, getQuestions, askRAG } from "../api";
 import {
   LayoutDashboard, Building2, BookOpen, MessageSquare, HelpCircle,
   TrendingUp, FileText, Bookmark, Settings, Search, Bell, Star,
@@ -994,7 +994,11 @@ function CompaniesPage({ onNav }: { onNav: (p: Page) => void }) {
 function PreparationPage() {
   const [coId, setCoId] = useState("google");
   const [roundTab, setRoundTab] = useState(0);
-
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
+  const [aiSources, setAiSources] = useState<any[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1043,8 +1047,140 @@ function PreparationPage() {
     );
   }
 
+    async function handleAskAI() {
+    if (!aiQuestion.trim()) return;
+
+    const company = companies.find((c) => c.id === coId);
+
+    setAiLoading(true);
+    setAiError("");
+    setAiAnswer("");
+    setAiSources([]);
+
+    try {
+      const result = await askRAG(
+        aiQuestion,
+        company?.name,
+        "SDE / Software Engineering",
+        undefined,
+        3
+      );
+
+      setAiAnswer(result.answer || "");
+      setAiSources(result.sources || []);
+    } catch (error) {
+      console.error("RAG request failed:", error);
+      setAiError("Unable to get an AI answer. Please try again.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
+          <div className="bg-white rounded-2xl border border-indigo-100 p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Brain size={18} />
+          </div>
+
+          <div>
+            <h2 className="font-bold text-slate-900">
+              AI Interview Assistant
+            </h2>
+            <p className="text-xs text-slate-500">
+              Ask questions grounded in real interview evidence
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <input
+            value={aiQuestion}
+            onChange={(e) => setAiQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleAskAI();
+              }
+            }}
+            placeholder={`Ask anything about ${companies.find((c) => c.id === coId)?.name || "this company"} interviews...`}
+            className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+
+          <button
+            onClick={handleAskAI}
+            disabled={aiLoading || !aiQuestion.trim()}
+            className="bg-indigo-600 text-white px-5 py-3 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {aiLoading ? (
+              "Thinking..."
+            ) : (
+              <>
+                Ask AI <Send size={15} />
+              </>
+            )}
+          </button>
+        </div>
+
+        {aiError && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
+            {aiError}
+          </div>
+        )}
+
+        {aiAnswer && (
+          <div className="mt-5 bg-slate-50 rounded-xl p-5 border border-slate-100">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={15} className="text-indigo-600" />
+              <span className="font-semibold text-slate-800">
+                InterviewIQ Answer
+              </span>
+            </div>
+
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+              {aiAnswer}
+            </p>
+
+            {aiSources.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-slate-200">
+                <p className="text-xs font-semibold text-slate-500 mb-2">
+                  Sources used
+                </p>
+
+                <div className="space-y-2">
+                  {aiSources.map((source, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between gap-3 bg-white rounded-lg border border-slate-100 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-700 truncate">
+                          {source.source_name}
+                        </p>
+
+                        <p className="text-[11px] text-slate-400">
+                          {source.source_type} · {source.published_date || "Date unavailable"}
+                        </p>
+                      </div>
+
+                      {source.source_url && (
+                        <a
+                          href={source.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:text-indigo-800 flex-shrink-0"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Interview Preparation</h1>

@@ -1,13 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 from data.companies import companies
 from data.questions import questions
+from rag.rag_pipeline import RAGPipeline
 
 app = FastAPI(
     title="InterviewIQ API",
     description="AI-powered company-specific interview preparation API",
     version="1.0.0"
 )
+rag_pipeline = RAGPipeline()
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,3 +40,25 @@ def get_companies():
 @app.get("/api/questions")
 def get_questions():
     return questions
+
+class RAGRequest(BaseModel):
+    question: str
+    company: str | None = None
+    role: str | None = None
+    source_type: str | None = None
+    top_k: int = 3
+
+@app.post("/api/rag/ask")
+def ask_rag(request: RAGRequest):
+
+    result = rag_pipeline.ask(
+        question=request.question,
+        company=request.company,
+        role=request.role,
+        source_type=request.source_type,
+        top_k=request.top_k
+    )
+
+    return result
+
+    

@@ -29,3 +29,31 @@ export async function getQuestions() {
 
   return response.json();
 }
+
+export async function askRAG(
+  question: string,
+  company?: string,
+  role?: string,
+  source_type?: string,
+  top_k: number = 3
+) {
+  const response = await fetch(`${API_URL}/api/rag/ask`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      question,
+      company,
+      role,
+      source_type,
+      top_k,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to get AI interview answer");
+  }
+
+  return response.json();
+}

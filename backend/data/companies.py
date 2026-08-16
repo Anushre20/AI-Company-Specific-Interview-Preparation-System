@@ -308,5 +308,104 @@ companies = [
         "rating": 3.8,
         "tags": ["Mass Recruiter", "IT Services", "Fresher"],
         "recentActivity": "Bulk hiring open · Last updated today"
+    },
+
+        {
+        "id": "sprinklr",
+        "name": "Sprinklr",
+        "abbr": "Sp",
+        "color": "#6C63FF",
+        "sector": "Tech",
+        "difficulty": "Hard",
+        "avgPackage": "N/A",
+        "openRoles": 1,
+        "eligibility": {
+            "cgpa": 6.0,
+            "branches": ["CSE", "IT", "ECE", "EEE", "MCA"],
+            "backlogs": 0,
+            "graduationYears": [2026, 2027, 2028]
+        },
+        "rounds": [
+            {
+                "type": "OA",
+                "name": "Online Coding Test",
+                "duration": "Varies",
+                "topics": [
+                    {
+                        "name": "DSA & Coding",
+                        "difficulty": "Medium",
+                        "frequency": 5,
+                        "confidence": 80
+                    }
+                ]
+            },
+            {
+                "type": "Technical",
+                "name": "Technical Interview 1",
+                "duration": "60 min",
+                "topics": [
+                    {
+                        "name": "DSA",
+                        "difficulty": "Medium",
+                        "frequency": 5,
+                        "confidence": 80
+                    },
+                    {
+                        "name": "DBMS",
+                        "difficulty": "Medium",
+                        "frequency": 4,
+                        "confidence": 75
+                    }
+                ]
+            },
+            {
+                "type": "Technical",
+                "name": "Technical Interview 2",
+                "duration": "60 min",
+                "topics": [
+                    {
+                        "name": "String Algorithms",
+                        "difficulty": "Medium",
+                        "frequency": 4,
+                        "confidence": 70
+                    },
+                    {
+                        "name": "Sorting Algorithms",
+                        "difficulty": "Medium",
+                        "frequency": 4,
+                        "confidence": 70
+                    },
+                    {
+                        "name": "DBMS",
+                        "difficulty": "Medium",
+                        "frequency": 3,
+                        "confidence": 65
+                    }
+                ]
+            },
+            {
+                "type": "HR",
+                "name": "HR / Managerial Round",
+                "duration": "30 min",
+                "topics": [
+                    {
+                        "name": "Behavioral Questions",
+                        "difficulty": "Easy",
+                        "frequency": 5,
+                        "confidence": 80
+                    },
+                    {
+                        "name": "Projects & Experience",
+                        "difficulty": "Easy",
+                        "frequency": 5,
+                        "confidence": 80
+                    }
+                ]
+            }
+        ],
+        "interviewReports": 2,
+        "rating": 4.3,
+        "tags": ["SaaS", "SDE", "Enterprise"],
+        "recentActivity": "RAG evidence available · Based on indexed reports"
     }
 ]
