@@ -4,6 +4,8 @@ import json
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from rag.retriever import InterviewRetriever
+from web.search import WebSearch
+from web.source_processor import SourceProcessor
 from rag.context_builder import build_context
 from rag.prompts import (
     SYSTEM_PROMPT,
@@ -17,6 +19,8 @@ class RAGPipeline:
 
     def __init__(self):
         self.retriever = InterviewRetriever()
+        self.web_search = WebSearch()
+        self.source_processor = SourceProcessor()
 
     def ask(
         self,
@@ -27,13 +31,43 @@ class RAGPipeline:
         top_k=3
     ):
 
-        results = self.retriever.retrieve(
-            query=question,
-            top_k=top_k,
-            company=company,
-            role=role,
-            source_type=source_type
+        # ==============================
+        # LIVE WEB SEARCH
+        # ==============================
+
+        live_results = self.web_search.search_company(
+            company,
+            max_results=10
         )
+
+        processed_sources = self.source_processor.process(
+            live_results,
+            company
+        )
+
+        # ==============================
+        # LIVE SEMANTIC RETRIEVAL
+        # ==============================
+
+        results = self.retriever.retrieve_live(
+            query=question,
+            sources=processed_sources,
+            top_k=top_k
+        )
+
+        # ==============================
+        # FALLBACK TO LOCAL VECTOR STORE
+        # ==============================
+
+        if not results:
+
+            results = self.retriever.retrieve(
+                query=question,
+                top_k=top_k,
+                company=company,
+                role=role,
+                source_type=source_type
+            )
 
         context = build_context(results)
 
@@ -71,6 +105,7 @@ class RAGPipeline:
             end = response.rfind("}")
 
             if start != -1 and end != -1:
+
                 json_text = response[start:end + 1]
 
                 try:
@@ -97,12 +132,67 @@ class RAGPipeline:
             f"for {company}"
         )
 
-        results = self.retriever.retrieve(
-            query=query,
-            top_k=top_k,
-            company=company,
-            role=role
+        # ==============================
+        # LIVE WEB SEARCH
+        # ==============================
+
+        live_results = self.web_search.search_company(
+            company,
+            max_results=10
         )
+
+        print(f"\nLive web results for {company}: {len(live_results)}")
+
+        # ==============================
+        # PROCESS LIVE SOURCES
+        # ==============================
+
+        processed_sources = self.source_processor.process(
+            live_results,
+            company
+        )
+
+        print(
+            f"Processed sources for {company}: "
+            f"{len(processed_sources)}"
+        )
+
+        # ==============================
+        # LIVE SEMANTIC RETRIEVAL
+        # ==============================
+
+        results = self.retriever.retrieve_live(
+            query=query,
+            sources=processed_sources,
+            top_k=top_k
+        )
+
+        print(
+            f"Live retrieved sources for {company}: "
+            f"{len(results)}"
+        )
+
+        # ==============================
+        # FALLBACK TO LOCAL FAISS
+        # ==============================
+
+        if not results:
+
+            print(
+                f"No live results found for {company}. "
+                f"Falling back to FAISS."
+            )
+
+            results = self.retriever.retrieve(
+                query=query,
+                top_k=top_k,
+                company=company,
+                role=role
+            )
+
+        # ==============================
+        # BUILD RAG CONTEXT
+        # ==============================
 
         context = build_context(results)
 
@@ -117,9 +207,10 @@ class RAGPipeline:
         )
 
         analysis = self._parse_json_response(response)
+
         return {
             "company": company,
             "role": role,
-            "analysis": response,
+            "analysis": analysis,
             "sources": results
         }

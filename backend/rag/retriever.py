@@ -87,6 +87,65 @@ class InterviewRetriever:
 
         return results
 
+    def retrieve_live(
+        self,
+        query,
+        sources,
+        top_k=5
+    ):
+
+        if not sources:
+            return []
+
+        documents = []
+
+        for source in sources:
+
+            content = source.get("content") or source.get("raw_content") or ""
+
+            if not content.strip():
+                continue
+
+            documents.append({
+                **source,
+                "content": content
+            })
+
+        if not documents:
+            return []
+
+        texts = [
+            document["content"]
+            for document in documents
+        ]
+
+        embeddings = self.model.encode(
+            texts,
+            convert_to_numpy=True
+        )
+
+        query_embedding = self.model.encode(
+            [query],
+            convert_to_numpy=True
+        )
+
+        similarities = embeddings @ query_embedding[0]
+
+        ranked_indices = similarities.argsort()[::-1]
+
+        results = []
+
+        for index in ranked_indices[:top_k]:
+
+            result = documents[index].copy()
+
+            result["distance"] = float(
+                1 - similarities[index]
+            )
+
+            results.append(result)
+
+        return results
 
 if __name__ == "__main__":
 
@@ -101,6 +160,42 @@ if __name__ == "__main__":
         source_type="reported"
     )
 
+    from web.search import WebSearch
+    from web.source_processor import SourceProcessor
+
+    searcher = WebSearch()
+    processor = SourceProcessor()
+
+    live_results = searcher.search_company(
+        "Sprinklr",
+        max_results=5
+    )
+
+    processed_results = processor.process(
+        live_results,
+        "Sprinklr"
+    )
+
+    live_retrieved = retriever.retrieve_live(
+        query,
+        processed_results,
+        top_k=3
+    )
+
+    print("\n==============================")
+    print("LIVE RAG RESULTS")
+    print("==============================")
+
+    for i, result in enumerate(live_retrieved, start=1):
+
+        print(f"\n--- Live Result {i} ---")
+        print("Source:", result["source_name"])
+        print("Type:", result["source_type"])
+        print("URL:", result["source_url"])
+        print("Distance:", result["distance"])
+        print("Content:")
+        print(result["content"][:500])
+        
     context = build_context(results)
 
     print("\n==============================")

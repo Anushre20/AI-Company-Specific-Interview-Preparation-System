@@ -999,6 +999,7 @@ function CompaniesPage({ onNav }: { onNav: (p: Page) => void }) {
 
 function PreparationPage() {
   const [coId, setCoId] = useState("google");
+  const [customCompany, setCustomCompany] = useState("");
   const [roundTab, setRoundTab] = useState(0);
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiAnswer, setAiAnswer] = useState("");
@@ -1024,7 +1025,35 @@ function PreparationPage() {
       });
   }, []);
 
-  const co = companies.find(c => c.id === coId);
+    const selectedCompany = companies.find(c => c.id === coId);
+
+const activeCompanyName =
+  coId === "custom"
+    ? customCompany.trim()
+    : selectedCompany?.name || "";
+
+const co = selectedCompany || {
+  id: "custom",
+  name: activeCompanyName || "Company",
+  abbr: activeCompanyName
+    ? activeCompanyName.substring(0, 2).toUpperCase()
+    : "CO",
+  color: "#4F46E5",
+  sector: "Technology",
+  difficulty: "Hard" as Difficulty,
+  avgPackage: "N/A",
+  interviewReports: 0,
+  rating: 0,
+  rounds: [],
+  tags: [],
+  recentActivity: "Live web research",
+  eligibility: {
+    cgpa: 0,
+    branches: [],
+    backlogs: 0,
+    graduationYears: []
+  }
+};
 
   const roundIconMap: Record<string, typeof Code2> = {
     OA: Hash,
@@ -1039,6 +1068,47 @@ function PreparationPage() {
     Managerial: "bg-orange-50 text-orange-700",
     HR: "bg-pink-50 text-pink-700"
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-slate-500">Loading preparation data...</p>
+      </div>
+    );
+  }
+
+  if (!co) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-slate-500">Company data not found.</p>
+      </div>
+    );
+  }
+
+  const aiAnalysis = (() => {
+    if (!interviewIntelligence?.analysis) return null;
+
+    try {
+      if (typeof interviewIntelligence.analysis === "object") {
+        return interviewIntelligence.analysis;
+      }
+
+      let raw = interviewIntelligence.analysis
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  })();
+
+  const roadmapRounds =
+  Array.isArray(aiAnalysis?.rounds)
+    ? aiAnalysis.rounds
+    : [];
 
     if (loading) {
     return (
@@ -1059,17 +1129,19 @@ function PreparationPage() {
     async function handleAskAI() {
     if (!aiQuestion.trim()) return;
 
-    const company = companies.find((c) => c.id === coId);
+const companyName = activeCompanyName;
 
-    setAiLoading(true);
+if (!companyName) return;
+
+setAiLoading(true);
     setAiError("");
     setAiAnswer("");
     setAiSources([]);
 
     try {
       const result = await askRAG(
-        aiQuestion,
-        company?.name,
+  aiQuestion,
+  companyName,
         "SDE / Software Engineering",
         undefined,
         3
@@ -1086,16 +1158,16 @@ function PreparationPage() {
   }
 
   async function loadInterviewIntelligence() {
-    const company = companies.find((c) => c.id === coId);
+const companyName = activeCompanyName;
 
-    if (!company) return;
+if (!companyName) return;
 
     setIntelligenceLoading(true);
     setIntelligenceError("");
 
     try {
-      const result = await getInterviewIntelligence(
-        company.name,
+const result = await getInterviewIntelligence(
+  companyName,
         "SDE / Software Engineering",
         10
       );
@@ -1139,7 +1211,7 @@ function PreparationPage() {
                 handleAskAI();
               }
             }}
-            placeholder={`Ask anything about ${companies.find((c) => c.id === coId)?.name || "this company"} interviews...`}
+            placeholder={`Ask anything about ${activeCompanyName || "this company"} interviews...`}
             className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
 
@@ -1222,14 +1294,35 @@ function PreparationPage() {
           <h1 className="text-2xl font-bold text-slate-900">Interview Preparation</h1>
           <p className="text-slate-500 text-sm mt-0.5">Step-by-step roadmap with topics, confidence tracking, and sources</p>
         </div>
-        <select value={coId} onChange={e => { setCoId(e.target.value); setRoundTab(0); }}
+        <select
+  value={coId}
+  onChange={e => {
+    setCoId(e.target.value);
+    setRoundTab(0);
+    setInterviewIntelligence(null);
+    setIntelligenceError("");
+  }}
           className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           {companies.map(c => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
+          <option value="custom">Other / Enter Company</option>
         </select>
+
+{coId === "custom" && (
+  <input
+    value={customCompany}
+    onChange={(e) => {
+      setCustomCompany(e.target.value);
+      setInterviewIntelligence(null);
+      setRoundTab(0);
+    }}
+    placeholder="Enter company name..."
+    className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+  />
+)}
 
         <button
           onClick={loadInterviewIntelligence}
@@ -1293,13 +1386,13 @@ function PreparationPage() {
           <CompanyAvatar company={co} />
           <div>
             <h2 className="font-bold text-slate-900">{co.name} · Full Interview Roadmap</h2>
-            <p className="text-sm text-slate-500">{co.rounds.length} rounds · {co.difficulty} difficulty · {co.avgPackage}</p>
+            <p className="text-sm text-slate-500">{roadmapRounds.length} rounds · {co.difficulty} difficulty · {co.avgPackage}</p>
           </div>
         </div>
 
         {/* Round tabs */}
         <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
-          {co.rounds.map((r, i) => {
+          {roadmapRounds.map((r, i) => {
             const Icon = roundIconMap[r.type] || Code2;
             const colorCls = roundColorMap[r.type] || "";
             return (
@@ -1310,41 +1403,103 @@ function PreparationPage() {
                     <Icon size={14} className={roundTab === i ? "text-white" : ""} />
                   </div>
                   {r.type}
-                  <span className={`text-xs ${roundTab === i ? "text-indigo-200" : "text-slate-400"}`}>{r.duration}</span>
+                  <span className={`text-xs ${roundTab === i ? "text-indigo-200" : "text-slate-400"}`}>{r.duration || "—"}</span>
                 </button>
-                {i < co.rounds.length - 1 && <ChevronRight size={16} className="text-slate-300" />}
+                {i < roadmapRounds.length - 1 && (
+  <ChevronRight size={16} className="text-slate-300" />
+)}
               </div>
             );
           })}
         </div>
 
-        {co.rounds[roundTab] && (
+        {roadmapRounds.length === 0 ? (
+  <div className="text-center py-12">
+    <Brain size={28} className="mx-auto text-violet-400 mb-3" />
+
+    <p className="font-semibold text-slate-700">
+      No interview roadmap available yet
+    </p>
+
+    <p className="text-sm text-slate-500 mt-1">
+      Click "Analyze with AI" to research this company using live interview evidence.
+    </p>
+  </div>
+) : roadmapRounds[roundTab] && (
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <RoundBadge type={co.rounds[roundTab].type} />
-              <span className="font-bold text-slate-800">{co.rounds[roundTab].name}</span>
-              <span className="ml-auto text-xs text-slate-500 flex items-center gap-1"><Clock size={12} />{co.rounds[roundTab].duration}</span>
+              <RoundBadge type={roadmapRounds[roundTab].type} />
+              <span className="font-bold text-slate-800">{roadmapRounds[roundTab].name}</span>
+              <span className="ml-auto text-xs text-slate-500 flex items-center gap-1">
+  <Clock size={12} />
+  {roadmapRounds[roundTab]?.duration || "—"}
+</span>
             </div>
             <div className="space-y-3">
-              {co.rounds[roundTab].topics.map((tp, ti) => (
+              {roadmapRounds[roundTab].topics.map((tp: any, ti: number) => (
                 <div key={ti} className="p-4 border border-slate-100 rounded-xl hover:border-indigo-100 hover:bg-slate-50/50 transition-all">
                   <div className="flex items-center gap-3 mb-2">
                     <h4 className="font-semibold text-slate-800 flex-1">{tp.name}</h4>
-                    <DiffBadge d={tp.difficulty} />
+                    <DiffBadge
+  d={
+    tp.difficulty ||
+    (tp.confidence === "High"
+      ? "Easy"
+      : tp.confidence === "Low"
+        ? "Hard"
+        : "Medium")
+  }
+/>
                     <div className="flex items-center gap-1 text-xs text-slate-400">
-                      Freq:
-                      {Array.from({ length: 5 }).map((_, fi) => (
-                        <div key={fi} className={`w-1.5 h-1.5 rounded-full ${fi < tp.frequency ? "bg-indigo-500" : "bg-slate-200"}`} />
-                      ))}
-                    </div>
+  <Brain size={12} />
+  AI Evidence
+</div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-400 w-20">Confidence</span>
                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${tp.confidence >= 70 ? "bg-emerald-500" : tp.confidence >= 50 ? "bg-amber-400" : "bg-red-400"}`}
-                        style={{ width: `${tp.confidence}%` }} />
+                      <div
+  className={`h-full rounded-full ${
+    (typeof tp.confidence === "number"
+      ? tp.confidence
+      : tp.confidence === "High"
+        ? 80
+        : tp.confidence === "Low"
+          ? 30
+          : 55) >= 70
+      ? "bg-emerald-500"
+      : (typeof tp.confidence === "number"
+          ? tp.confidence
+          : tp.confidence === "High"
+            ? 80
+            : tp.confidence === "Low"
+              ? 30
+              : 55) >= 50
+        ? "bg-amber-400"
+        : "bg-red-400"
+  }`}
+  style={{
+    width: `${
+      typeof tp.confidence === "number"
+        ? tp.confidence
+        : tp.confidence === "High"
+          ? 80
+          : tp.confidence === "Low"
+            ? 30
+            : 55
+    }%`
+  }}
+/>
                     </div>
-                    <span className="text-xs text-slate-500 w-10">{tp.confidence}% ready</span>
+                    <span className="text-xs text-slate-500 w-10">
+                      {typeof tp.confidence === "number"
+  ? tp.confidence
+  : tp.confidence === "High"
+    ? 80
+    : tp.confidence === "Low"
+      ? 30
+      : 55}% confidence
+                      </span>
                     <button className="text-xs text-indigo-600 font-semibold hover:underline">Practice →</button>
                   </div>
                 </div>
@@ -1401,7 +1556,7 @@ function MockInterviewPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
     Promise.all([getCompanies(), getQuestions()])
