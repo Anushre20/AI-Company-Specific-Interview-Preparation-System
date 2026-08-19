@@ -131,7 +131,22 @@ class InterviewRetriever:
 
         similarities = embeddings @ query_embedding[0]
 
-        ranked_indices = similarities.argsort()[::-1]
+        authority_scores = [
+            document.get("authority_score", 0.40)
+            for document in documents
+        ]
+
+        final_scores = [
+            (similarities[i] * 0.75) +
+            (authority_scores[i] * 0.25)
+            for i in range(len(documents))
+        ]
+
+        ranked_indices = sorted(
+            range(len(documents)),
+            key=lambda i: final_scores[i],
+            reverse=True
+        )
 
         results = []
 
@@ -141,6 +156,14 @@ class InterviewRetriever:
 
             result["distance"] = float(
                 1 - similarities[index]
+            )
+
+            result["semantic_score"] = float(
+                similarities[index]
+            )
+
+            result["final_score"] = float(
+                final_scores[index]
             )
 
             results.append(result)

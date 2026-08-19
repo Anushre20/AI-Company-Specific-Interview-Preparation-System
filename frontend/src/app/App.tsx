@@ -1172,9 +1172,10 @@ const result = await getInterviewIntelligence(
         10
       );
 
-      setInterviewIntelligence(result);
+setInterviewIntelligence(result);
+setAiSources(result.sources || []);
 
-      console.log("Interview Intelligence:", result);
+console.log("Interview Intelligence:", result);
     } catch (error) {
       console.error("Interview intelligence request failed:", error);
       setIntelligenceError(
@@ -1289,51 +1290,64 @@ const result = await getInterviewIntelligence(
           </div>
         )}
       </div>
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Interview Preparation</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Step-by-step roadmap with topics, confidence tracking, and sources</p>
-        </div>
-        <select
-  value={coId}
-  onChange={e => {
-    setCoId(e.target.value);
-    setRoundTab(0);
-    setInterviewIntelligence(null);
-    setIntelligenceError("");
-  }}
-          className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-          {companies.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-          <option value="custom">Other / Enter Company</option>
-        </select>
+<div className="flex items-center justify-between flex-wrap gap-3">
+  <div>
+    <h1 className="text-2xl font-bold text-slate-900">
+      Interview Preparation
+    </h1>
+    <p className="text-slate-500 text-sm mt-0.5">
+      Step-by-step roadmap with topics, confidence tracking, and sources
+    </p>
+  </div>
 
-{coId === "custom" && (
-  <input
-    value={customCompany}
-    onChange={(e) => {
-      setCustomCompany(e.target.value);
-      setInterviewIntelligence(null);
-      setRoundTab(0);
-    }}
-    placeholder="Enter company name..."
-    className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-  />
-)}
+  <div className="flex items-center gap-3 flex-wrap">
 
-        <button
-          onClick={loadInterviewIntelligence}
-          disabled={intelligenceLoading}
-          className="bg-violet-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-700 disabled:opacity-50"
-        >
-          {intelligenceLoading
-            ? "Analyzing..."
-            : "Analyze with AI"}
-        </button>
-      </div>
+    <select
+      value={coId}
+      onChange={(e) => {
+        setCoId(e.target.value);
+        setRoundTab(0);
+        setInterviewIntelligence(null);
+        setIntelligenceError("");
+        setCustomCompany("");
+      }}
+      className="w-48 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+    >
+      {companies.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.name}
+        </option>
+      ))}
+
+      <option value="custom">
+        Other / Enter Company
+      </option>
+    </select>
+
+    {coId === "custom" && (
+      <input
+        type="text"
+        value={customCompany}
+        onChange={(e) => {
+          setCustomCompany(e.target.value);
+          setInterviewIntelligence(null);
+          setRoundTab(0);
+        }}
+        placeholder="Enter company name..."
+        className="w-64 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+      />
+    )}
+
+    <button
+      onClick={loadInterviewIntelligence}
+      disabled={intelligenceLoading || !activeCompanyName}
+      className="bg-violet-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-700 disabled:opacity-50"
+    >
+      {intelligenceLoading ? "Analyzing..." : "Analyze with AI"}
+    </button>
+
+  </div>
+</div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
               {intelligenceError && (
@@ -1512,29 +1526,87 @@ const result = await getInterviewIntelligence(
       {/* RAG Sources */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h2 className="font-bold text-slate-800 mb-1 flex items-center gap-2">
-          <Globe size={17} className="text-indigo-600" /> Sources & Evidence
+          <Globe size={17} className="text-indigo-600" />
+          Sources & Evidence
         </h2>
-        <p className="text-sm text-slate-500 mb-4">Data powering this preparation guide — retrieved via RAG from verified sources.</p>
-        <div className="space-y-2.5">
-          {[
-            { title: `${co.name} Careers Page`, type: "official" as Source, url: "careers.google.com", desc: "Official job descriptions and technical requirements" },
-            { title: "Glassdoor Interview Experiences", type: "reported" as Source, url: "glassdoor.com", desc: `${co.interviewReports} verified interview reports from {co.name}` },
-            { title: "LeetCode & InterviewBit Forums", type: "reported" as Source, url: "leetcode.com / interviewbit.com", desc: "Community-submitted questions with upvotes and solutions" },
-            { title: "InterviewIQ RAG Engine v2", type: "ai-generated" as Source, url: "app.interviewiq.ai/rag", desc: "AI-extracted patterns from 50,000+ interview data points" },
-            { title: "Topic Frequency Predictions", type: "ai-prediction" as Source, url: "app.interviewiq.ai/predict", desc: "ML model predicting upcoming interview focus areas" },
-          ].map(({ title, type, url, desc }) => (
-            <div key={title} className="flex items-center gap-3 p-3.5 border border-slate-100 rounded-xl hover:border-slate-200 transition-colors group">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold text-slate-800">{title}</span>
-                  <SourceBadge type={type} />
+
+        <p className="text-sm text-slate-500 mb-4">
+          Live sources retrieved from the web and used to generate this preparation guide.
+        </p>
+
+        {aiSources.length === 0 ? (
+          <div className="text-center py-8">
+            <Globe size={24} className="mx-auto text-slate-300 mb-2" />
+
+            <p className="text-sm font-semibold text-slate-600">
+              No live sources loaded yet
+            </p>
+
+            <p className="text-xs text-slate-400 mt-1">
+              Ask AI a question or click "Analyze with AI" to retrieve live evidence.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {aiSources.map((source, index) => {
+              const sourceType =
+                source.source_type === "official"
+                  ? "official"
+                  : source.source_type === "reported"
+                    ? "reported"
+                    : "ai-generated";
+
+              return (
+                <div
+                  key={`${source.source_url || source.source_name}-${index}`}
+                  className="flex items-center gap-3 p-3.5 border border-slate-100 rounded-xl hover:border-indigo-100 hover:bg-slate-50/50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-800">
+                        {source.source_name || "Web Source"}
+                      </span>
+
+                      <SourceBadge type={sourceType as Source} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                      {source.domain && (
+                        <span>{source.domain}</span>
+                      )}
+
+                      {source.search_score !== undefined &&
+                        source.search_score !== null && (
+                          <span>
+                            Search relevance:{" "}
+                            {(Number(source.search_score) * 100).toFixed(0)}%
+                          </span>
+                        )}
+
+                      {source.published_date && (
+                        <span>
+                          Published: {source.published_date}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {source.source_url && (
+                    <a
+                      href={source.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open source"
+                      className="text-indigo-600 hover:text-indigo-800 flex-shrink-0"
+                    >
+                      <ExternalLink size={15} />
+                    </a>
+                  )}
                 </div>
-                <p className="text-xs text-slate-500">{url} · {desc}</p>
-              </div>
-              <ExternalLink size={13} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

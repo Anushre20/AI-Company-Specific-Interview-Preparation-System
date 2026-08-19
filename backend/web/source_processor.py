@@ -142,6 +142,16 @@ class SourceProcessor:
 
         return "other"
 
+    def get_authority_score(self, source_type):
+        scores = {
+            "official": 1.00,
+            "reported": 0.85,
+            "job_description": 0.75,
+            "other": 0.40
+        }
+
+        return scores.get(source_type, 0.40)
+
     def is_quality_source(self, result):
 
         url = result.get("url", "")
@@ -210,6 +220,9 @@ class SourceProcessor:
             processed_results.append({
                 "company": company,
                 "source_type": source_type,
+                "authority_score": self.get_authority_score(
+                    source_type
+                ),
                 "source_name": result.get("title"),
                 "source_url": result.get("url"),
                 "content": result.get("content"),
@@ -259,6 +272,10 @@ if __name__ == "__main__":
         print("URL:", result["source_url"])
         print("Search Score:", result["search_score"])
         print("Domain:", result["domain"])
+        print(
+            "Authority Score:",
+            result["authority_score"]
+        )
 
         print("Content:")
         print((result["content"] or "")[:300])
