@@ -24,9 +24,9 @@ import {
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type Page =
-  | "landing" | "dashboard" | "companies" | "preparation"
-  | "mock-interview" | "questions" | "progress" | "resume"
-  | "saved" | "settings";
+  | "landing" | "dashboard" | "preparation"
+  | "mock-interview" | "questions" | "resume"
+  | "settings";
 type Source = "official" | "reported" | "ai-generated" | "ai-prediction";
 type Difficulty = "Easy" | "Medium" | "Hard";
 type RoundType = "OA" | "Technical" | "Managerial" | "HR";
@@ -450,17 +450,7 @@ function LandingPage({ onStart }: { onStart: () => void }) {
           </div>
           <span className="font-bold text-lg text-slate-900">Interview<span className="text-indigo-600">IQ</span></span>
         </div>
-        <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
-          <button className="hover:text-slate-900 transition-colors">Features</button>
-          <button className="hover:text-slate-900 transition-colors">Companies</button>
-          <button className="hover:text-slate-900 transition-colors">Pricing</button>
-          <button onClick={onStart} className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors">
-            Get Started Free
-          </button>
-        </div>
-        <button onClick={onStart} className="md:hidden bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold">
-          Get Started
-        </button>
+
       </nav>
 
       {/* Hero */}
@@ -480,22 +470,6 @@ function LandingPage({ onStart }: { onStart: () => void }) {
           <button onClick={onStart} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl text-base font-bold hover:bg-indigo-700 transition-all hover:shadow-xl hover:shadow-indigo-200 flex items-center gap-2">
             Start Free Preparation <ArrowRight size={18} />
           </button>
-          <button className="flex items-center gap-2 text-slate-700 px-6 py-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-colors font-semibold">
-            <Play size={15} className="text-indigo-600" fill="currentColor" /> Watch 2-min Demo
-          </button>
-        </div>
-        <p className="text-sm text-slate-400 mt-4">No credit card required · 5,000+ students placed at top companies</p>
-      </section>
-
-      {/* Stats Banner */}
-      <section className="bg-indigo-600 py-12 px-6">
-        <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          {[["200+", "Companies Covered"], ["50K+", "Interview Questions"], ["92%", "Success Rate"], ["5K+", "Students Placed"]].map(([n, l]) => (
-            <div key={l}>
-              <div className="text-3xl font-extrabold text-white">{n}</div>
-              <div className="text-indigo-200 text-sm mt-1">{l}</div>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -509,10 +483,7 @@ function LandingPage({ onStart }: { onStart: () => void }) {
           {[
             { icon: Brain, color: "bg-indigo-50 text-indigo-600", title: "RAG-Powered Preparation", desc: "Answers grounded in real company docs, JDs, and 50K+ reported interview experiences. Not hallucinated — verified and sourced." },
             { icon: Building2, color: "bg-emerald-50 text-emerald-600", title: "Company-Specific Roadmaps", desc: "Know exactly what rounds to expect, which topics to prioritize, difficulty per topic, and frequency — per company, per role." },
-            { icon: MessageSquare, color: "bg-violet-50 text-violet-600", title: "AI Mock Interviewer", desc: "Simulate real interviews with adaptive follow-up questions, timer pressure, and a detailed performance scorecard." },
             { icon: FileText, color: "bg-orange-50 text-orange-600", title: "Resume Match Score", desc: "Upload your resume and get company-fit scores, skill gap analysis, and likely interview questions based on your profile." },
-            { icon: Shield, color: "bg-blue-50 text-blue-600", title: "Source Transparency", desc: "Every question clearly labeled: Official, Reported, AI Generated, or AI Prediction. Know your source, trust your prep." },
-            { icon: Target, color: "bg-pink-50 text-pink-600", title: "Eligibility Checker", desc: "Instantly know if you qualify for any company based on CGPA, degree, graduation year, backlogs, and experience." },
           ].map(({ icon: Icon, color, title, desc }) => (
             <div key={title} className="p-6 rounded-2xl border border-slate-100 hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-50 transition-all group">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color} mb-4`}>
@@ -522,28 +493,6 @@ function LandingPage({ onStart }: { onStart: () => void }) {
               <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* How it Works */}
-      <section className="py-20 bg-slate-50 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-slate-900 mb-3">From Zero to Offer in 4 Steps</h2>
-          <p className="text-slate-500 mb-14">Your structured path to placement success.</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { n: "01", t: "Set Your Target", d: "Choose target companies and roles. Set interview date." },
-              { n: "02", t: "Check Eligibility", d: "Verify you meet each company's CGPA, branch, and backlog criteria." },
-              { n: "03", t: "Follow the Roadmap", d: "Study AI-curated topics in the right order, at the right depth." },
-              { n: "04", t: "Practice & Improve", d: "Take mock interviews, get feedback, track progress weekly." },
-            ].map(({ n, t, d }) => (
-              <div key={n}>
-                <div className="w-12 h-12 rounded-full bg-indigo-600 text-white font-bold text-lg flex items-center justify-center mx-auto mb-3">{n}</div>
-                <h3 className="font-bold text-slate-900 mb-1.5">{t}</h3>
-                <p className="text-sm text-slate-500">{d}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -2471,15 +2420,8 @@ function SettingsPage() {
 // ─── SIDEBAR ───────────────────────────────────────────────────────────────────
 
 const NAV = [
-  { page: "dashboard" as Page, label: "Dashboard", Icon: LayoutDashboard },
-  { page: "companies" as Page, label: "Companies", Icon: Building2 },
   { page: "preparation" as Page, label: "Preparation", Icon: BookOpen },
-  { page: "mock-interview" as Page, label: "Mock Interview", Icon: MessageSquare },
-  { page: "questions" as Page, label: "Questions", Icon: HelpCircle },
-  { page: "progress" as Page, label: "Progress", Icon: TrendingUp },
   { page: "resume" as Page, label: "Resume", Icon: FileText },
-  { page: "saved" as Page, label: "Saved", Icon: Bookmark },
-  { page: "settings" as Page, label: "Settings", Icon: Settings },
 ];
 
 function Sidebar({ cur, onNav, collapsed, onToggle }: { cur: Page; onNav: (p: Page) => void; collapsed: boolean; onToggle: () => void }) {
@@ -2570,7 +2512,7 @@ export default function App() {
 
   const isApp = page !== "landing";
 
-  if (!isApp) return <LandingPage onStart={() => setPage("dashboard")} />;
+  if (!isApp) return <LandingPage onStart={() => setPage("preparation")} />;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -2578,41 +2520,9 @@ export default function App() {
         <Sidebar cur={page} onNav={setPage} collapsed={collapsed} onToggle={() => setCollapsed(p => !p)} />
       )}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3 sticky top-0 z-40">
-          {isMobile && (
-            <button onClick={() => setCollapsed(p => !p)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors flex-shrink-0">
-              <Menu size={18} />
-            </button>
-          )}
-          <div className="flex-1 relative max-w-sm hidden sm:block">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input placeholder="Search companies, topics, questions..."
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-slate-700" />
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <button className="relative p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
-              <Bell size={17} />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-indigo-600 rounded-full" />
-            </button>
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-extrabold text-sm cursor-pointer">A</div>
-              <div className="hidden sm:block">
-                <p className="text-xs font-bold text-slate-800">Aryan Sharma</p>
-                <p className="text-xs text-slate-500">IIT Bombay</p>
-              </div>
-            </div>
-          </div>
-        </header>
         <main className="flex-1 p-5 md:p-6 overflow-auto">
-          {page === "dashboard" && <DashboardPage onNav={setPage} />}
-          {page === "companies" && <CompaniesPage onNav={setPage} />}
           {page === "preparation" && <PreparationPage />}
-          {page === "mock-interview" && <MockInterviewPage />}
-          {page === "questions" && <QuestionsPage />}
-          {page === "progress" && <ProgressPage />}
           {page === "resume" && <ResumePage />}
-          {page === "saved" && <SavedPage />}
-          {page === "settings" && <SettingsPage />}
         </main>
       </div>
     </div>
