@@ -6,6 +6,8 @@ import {
   askRAG,
   getInterviewIntelligence,
   analyzeResume,
+  generatePracticeQuestions,
+  evaluatePracticeAnswer,
 } from "../api";
 import {
   LayoutDashboard, Building2, BookOpen, MessageSquare, HelpCircle,
@@ -14,7 +16,7 @@ import {
   ArrowRight, Menu, ChevronRight, ChevronLeft, Brain, Lightbulb,
   Globe, Info, Send, ThumbsUp, Briefcase, Code2, TrendingDown,
   AlertTriangle, Plus, Sparkles, Trophy, Zap, Shield, Users,
-  ExternalLink, RotateCcw, Check, XCircle, Hash, ChevronDown, ChevronUp,
+  ExternalLink, RotateCcw, Check, XCircle, Hash, ChevronDown, ChevronUp, Mic,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -962,6 +964,27 @@ function PreparationPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Practice state
+  const [practiceActive, setPracticeActive] = useState(false);
+  const [practiceCompany, setPracticeCompany] = useState("");
+  const [practiceTopic, setPracticeTopic] = useState("");
+  const [practiceRound, setPracticeRound] = useState("");
+  const [practiceQuestions, setPracticeQuestions] = useState<any[]>([]);
+  const [practiceSources, setPracticeSources] = useState<any[]>([]);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceError, setPracticeError] = useState("");
+  const [practiceCurrentIndex, setPracticeCurrentIndex] = useState(0);
+  const [practiceUserAnswer, setPracticeUserAnswer] = useState("");
+  const [practiceEvaluation, setPracticeEvaluation] = useState<any>(null);
+  const [practiceEvalLoading, setPracticeEvalLoading] = useState(false);
+  const [practiceEvalError, setPracticeEvalError] = useState("");
+  const [practiceResults, setPracticeResults] = useState<any[]>([]);
+  const [practiceComplete, setPracticeComplete] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [showApproach, setShowApproach] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   useEffect(() => {
     getCompanies()
       .then((data) => {
@@ -1135,9 +1158,567 @@ console.log("Interview Intelligence:", result);
       setIntelligenceLoading(false);
     }
   }
+
+  async function startPractice(topicName: string, roundName: string, roundType: string) {
+    const companyName = activeCompanyName;
+    if (!companyName) return;
+
+    setPracticeActive(true);
+    setPracticeCompany(companyName);
+    setPracticeTopic(topicName);
+    setPracticeRound(roundName || roundType);
+    setPracticeLoading(true);
+    setPracticeError("");
+    setPracticeQuestions([]);
+    setPracticeCurrentIndex(0);
+    setPracticeUserAnswer("");
+    setPracticeEvaluation(null);
+    setPracticeResults([]);
+    setPracticeComplete(false);
+    setShowHint(false);
+    setShowApproach(false);
+
+    try {
+      const result = await generatePracticeQuestions(
+        companyName,
+        topicName,
+        roundType,
+        "SDE / Software Engineering",
+        5
+      );
+
+      const questions = result.questions?.questions || result.questions || [];
+      const parsed = Array.isArray(questions) ? questions : [];
+      setPracticeQuestions(parsed);
+      setPracticeSources(result.sources || []);
+    } catch (error: any) {
+      setPracticeError(error.message || "Failed to generate practice questions.");
+    } finally {
+      setPracticeLoading(false);
+    }
+  }
+
+  function exitPractice() {
+    setPracticeActive(false);
+    setPracticeQuestions([]);
+    setPracticeSources([]);
+    setPracticeResults([]);
+    setPracticeComplete(false);
+    setPracticeUserAnswer("");
+    setPracticeEvaluation(null);
+    setPracticeError("");
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  }
+
+  async function submitPracticeAnswer() {
+    if (!practiceUserAnswer.trim()) return;
+
+    const currentQ = practiceQuestions[practiceCurrentIndex];
+    if (!currentQ) return;
+
+    setPracticeEvalLoading(true);
+    setPracticeEvalError("");
+
+    try {
+      const result = await evaluatePracticeAnswer(
+        practiceCompany,
+        "SDE / Software Engineering",
+        practiceTopic,
+        currentQ.question,
+        practiceUserAnswer,
+        currentQ.type || "technical"
+      );
+
+      const evaluation = result.evaluation || result;
+      setPracticeEvaluation(evaluation);
+
+      setPracticeResults(prev => [
+        ...prev,
+        {
+          question: currentQ.question,
+          type: currentQ.type,
+          answer: practiceUserAnswer,
+          evaluation,
+        },
+      ]);
+    } catch (error: any) {
+      setPracticeEvalError(error.message || "Failed to evaluate answer.");
+    } finally {
+      setPracticeEvalLoading(false);
+    }
+  }
+
+  function nextPracticeQuestion() {
+    if (practiceCurrentIndex < practiceQuestions.length - 1) {
+      setPracticeCurrentIndex(prev => prev + 1);
+      setPracticeUserAnswer("");
+      setPracticeEvaluation(null);
+      setPracticeEvalError("");
+      setShowHint(false);
+      setShowApproach(false);
+    } else {
+      setPracticeComplete(true);
+    }
+  }
+
+  function prevPracticeQuestion() {
+    if (practiceCurrentIndex > 0) {
+      setPracticeCurrentIndex(prev => prev - 1);
+      const prevResult = practiceResults[practiceCurrentIndex - 1];
+      if (prevResult) {
+        setPracticeUserAnswer(prevResult.answer || "");
+        setPracticeEvaluation(prevResult.evaluation || null);
+      } else {
+        setPracticeUserAnswer("");
+        setPracticeEvaluation(null);
+      }
+      setShowHint(false);
+      setShowApproach(false);
+    }
+  }
+
+  function startSpeechRecognition() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setPracticeEvalError("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setPracticeUserAnswer(transcript);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }
+
+  const practiceOverallScore = practiceResults.length > 0
+    ? (practiceResults.reduce((sum, r) => sum + (r.evaluation?.score || 0), 0) / practiceResults.length).toFixed(1)
+    : "0";
+
   return (
     <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-indigo-100 p-6 shadow-sm">
+
+      {/* ─── PRACTICE PANEL ─── */}
+      {practiceActive && (
+        <div className="space-y-5">
+          {/* Practice Header */}
+          <div className="bg-white rounded-2xl border border-indigo-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <Code2 size={18} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-900">Practice Session</h2>
+                  <p className="text-xs text-slate-500">
+                    {practiceCompany} &middot; {practiceTopic} &middot; {practiceRound}
+                  </p>
+                </div>
+              </div>
+              <button onClick={exitPractice}
+                className="text-sm text-slate-500 border border-slate-200 px-4 py-2 rounded-xl font-semibold hover:bg-slate-50 transition-colors flex items-center gap-1.5">
+                <XCircle size={14} /> Exit Practice
+              </button>
+            </div>
+
+            {/* Progress bar */}
+            {!practiceComplete && practiceQuestions.length > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 font-semibold">
+                  Question {practiceCurrentIndex + 1} of {practiceQuestions.length}
+                </span>
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full transition-all"
+                    style={{ width: `${((practiceCurrentIndex + 1) / practiceQuestions.length) * 100}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Loading */}
+          {practiceLoading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+              <div className="text-center">
+                <p className="font-bold text-slate-900 mb-1">Generating practice questions...</p>
+                <p className="text-sm text-slate-500">Researching {practiceCompany} interview evidence for {practiceTopic}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {practiceError && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+              <AlertCircle size={28} className="text-red-500 mx-auto mb-2" />
+              <p className="font-bold text-red-800 mb-1">Could not generate questions</p>
+              <p className="text-sm text-red-600 mb-4">{practiceError}</p>
+              <button onClick={exitPractice}
+                className="bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-red-700 transition-colors">
+                Go Back
+              </button>
+            </div>
+          )}
+
+          {/* Practice Complete Summary */}
+          {practiceComplete && !practiceLoading && (
+            <div className="space-y-5">
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Trophy size={28} className="text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Practice Complete</h2>
+                <p className="text-sm text-slate-500 mb-6">{practiceCompany} &middot; {practiceTopic}</p>
+
+                <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-2xl font-extrabold text-indigo-600">{practiceOverallScore}</p>
+                    <p className="text-xs text-slate-500 mt-1">Avg Score / 10</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-2xl font-extrabold text-slate-800">{practiceResults.length}/{practiceQuestions.length}</p>
+                    <p className="text-xs text-slate-500 mt-1">Attempted</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-2xl font-extrabold text-emerald-600">
+                      {practiceResults.filter(r => (r.evaluation?.score || 0) >= 7).length}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Strong</p>
+                  </div>
+                </div>
+
+                {/* Per-question summary */}
+                <div className="space-y-2 text-left max-w-lg mx-auto mb-6">
+                  {practiceResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                      <span className="text-xs font-bold text-slate-400 w-6">Q{i + 1}</span>
+                      <span className="flex-1 text-sm text-slate-700 truncate">{r.question}</span>
+                      <span className={`text-sm font-bold ${r.evaluation?.score >= 7 ? "text-emerald-600" : r.evaluation?.score >= 4 ? "text-amber-600" : "text-red-600"}`}>
+                        {r.evaluation?.score || 0}/10
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Weak & Strong areas */}
+                {(() => {
+                  const allMissing = practiceResults.flatMap(r => r.evaluation?.missing_points || []);
+                  const allStrengths = practiceResults.flatMap(r => r.evaluation?.strengths || []);
+                  if (allMissing.length === 0 && allStrengths.length === 0) return null;
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto text-left mb-6">
+                      {allStrengths.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-emerald-700 mb-2 flex items-center gap-1"><CheckCircle2 size={12} /> Strong Areas</p>
+                          <ul className="space-y-1">
+                            {[...new Set(allStrengths)].slice(0, 4).map((s, i) => (
+                              <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                                <Check size={10} className="text-emerald-500 mt-0.5 flex-shrink-0" /> {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {allMissing.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1"><AlertTriangle size={12} /> Areas to Improve</p>
+                          <ul className="space-y-1">
+                            {[...new Set(allMissing)].slice(0, 4).map((m, i) => (
+                              <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                                <AlertTriangle size={10} className="text-amber-500 mt-0.5 flex-shrink-0" /> {m}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center justify-center gap-3">
+                  <button onClick={exitPractice}
+                    className="text-sm text-slate-600 border border-slate-200 px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-50 transition-colors">
+                    Back to Preparation
+                  </button>
+                  <button onClick={() => startPractice(practiceTopic, practiceRound, practiceRound)}
+                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors">
+                    Practice Again
+                  </button>
+                </div>
+              </div>
+
+              {/* Sources used */}
+              {practiceSources.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                  <h3 className="font-bold text-slate-800 mb-2 text-sm flex items-center gap-2">
+                    <Globe size={14} className="text-indigo-600" /> Based on
+                  </h3>
+                  <div className="space-y-1.5">
+                    {practiceSources.slice(0, 5).map((s: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.source_type === "official" ? "bg-blue-500" : s.source_type === "reported" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                        <span className="truncate">{s.source_name}</span>
+                        {s.source_url && (
+                          <a href={s.source_url} target="_blank" rel="noopener noreferrer"
+                            className="text-indigo-500 hover:underline flex-shrink-0">
+                            <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Active Question */}
+          {!practiceLoading && !practiceError && !practiceComplete && practiceQuestions.length > 0 && (() => {
+            const q = practiceQuestions[practiceCurrentIndex];
+            if (!q) return null;
+            return (
+              <div className="space-y-4">
+                {/* Question Card */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    {q.difficulty && <DiffBadge d={q.difficulty} />}
+                    <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold capitalize">{q.type || "technical"}</span>
+                  </div>
+                  <p className="text-base font-semibold text-slate-800 leading-relaxed mb-3">{q.question}</p>
+                  {q.company_relevance && (
+                    <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 italic">
+                      {q.company_relevance}
+                    </p>
+                  )}
+
+                  {/* Hint / Approach (hidden until requested) */}
+                  {q.type === "coding" && (
+                    <div className="mt-4 space-y-2">
+                      {!showHint && (
+                        <button onClick={() => setShowHint(true)}
+                          className="text-xs text-amber-600 font-semibold hover:underline flex items-center gap-1">
+                          <Lightbulb size={12} /> Show Hint
+                        </button>
+                      )}
+                      {showHint && q.hint && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                          <p className="text-xs font-bold text-amber-700 mb-1">Hint</p>
+                          <p className="text-sm text-slate-700">{q.hint}</p>
+                        </div>
+                      )}
+                      {!showApproach && (
+                        <button onClick={() => setShowApproach(true)}
+                          className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                          <Info size={12} /> Show Expected Approach
+                        </button>
+                      )}
+                      {showApproach && q.expected_approach && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                          <p className="text-xs font-bold text-indigo-700 mb-1">Expected Approach</p>
+                          <p className="text-sm text-slate-700">{q.expected_approach}</p>
+                          {q.key_concepts && q.key_concepts.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {q.key_concepts.map((kc: string) => (
+                                <span key={kc} className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{kc}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {q.type === "behavioral" && q.what_interviewer_is_testing && !practiceEvaluation && (
+                    <div className="mt-4 bg-violet-50 border border-violet-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-violet-700 mb-1">What the interviewer is evaluating</p>
+                      <p className="text-sm text-slate-700">{q.what_interviewer_is_testing}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Answer Input */}
+                {!practiceEvaluation && (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-bold text-slate-800">Your Answer</label>
+                      <button onClick={startSpeechRecognition}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${isRecording ? "bg-red-100 text-red-700 animate-pulse" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                        {isRecording ? <><XCircle size={12} /> Stop Recording</> : <><Mic size={12} /> Start Recording</>}
+                      </button>
+                    </div>
+                    <textarea
+                      value={practiceUserAnswer}
+                      onChange={e => setPracticeUserAnswer(e.target.value)}
+                      placeholder="Type your answer here..."
+                      rows={6}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    />
+                    <div className="flex items-center justify-between mt-3">
+                      <p className="text-xs text-slate-400">
+                        {isRecording ? "Recording... speak now" : "Type or use speech-to-text"}
+                      </p>
+                      <button onClick={submitPracticeAnswer}
+                        disabled={!practiceUserAnswer.trim() || practiceEvalLoading}
+                        className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {practiceEvalLoading ? (
+                          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Evaluating...</>
+                        ) : (
+                          <><Send size={14} /> Submit Answer</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Evaluation Result */}
+                {practiceEvaluation && (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-indigo-600" /> Evaluation
+                      </h3>
+                      <div className={`text-lg font-extrabold ${practiceEvaluation.score >= 7 ? "text-emerald-600" : practiceEvaluation.score >= 4 ? "text-amber-600" : "text-red-600"}`}>
+                        {practiceEvaluation.score}/{practiceEvaluation.max_score || 10}
+                      </div>
+                    </div>
+
+                    {practiceEvaluation.overall_feedback && (
+                      <p className="text-sm text-slate-700 bg-slate-50 rounded-xl p-3">{practiceEvaluation.overall_feedback}</p>
+                    )}
+
+                    {practiceEvaluation.strengths?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-emerald-700 mb-1.5 flex items-center gap-1"><CheckCircle2 size={11} /> Strengths</p>
+                        <ul className="space-y-1">
+                          {practiceEvaluation.strengths.map((s: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                              <Check size={12} className="text-emerald-500 mt-0.5 flex-shrink-0" /> {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {practiceEvaluation.improvements?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-amber-700 mb-1.5 flex items-center gap-1"><AlertTriangle size={11} /> Needs Improvement</p>
+                        <ul className="space-y-1">
+                          {practiceEvaluation.improvements.map((s: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                              <AlertTriangle size={12} className="text-amber-500 mt-0.5 flex-shrink-0" /> {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {practiceEvaluation.missing_points?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-red-700 mb-1.5 flex items-center gap-1"><XCircle size={11} /> Missing Concepts</p>
+                        <ul className="space-y-1">
+                          {practiceEvaluation.missing_points.map((s: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                              <XCircle size={12} className="text-red-400 mt-0.5 flex-shrink-0" /> {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {practiceEvaluation.ideal_answer_points?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-indigo-700 mb-1.5 flex items-center gap-1"><Brain size={11} /> A Strong Answer Should Include</p>
+                        <ul className="space-y-1">
+                          {practiceEvaluation.ideal_answer_points.map((s: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                              <ArrowRight size={12} className="text-indigo-500 mt-0.5 flex-shrink-0" /> {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Coding-specific: complexity */}
+                    {q.type === "coding" && practiceEvaluation.time_complexity && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 rounded-xl p-3">
+                          <p className="text-xs font-bold text-slate-600 mb-0.5">Time Complexity</p>
+                          <p className="text-sm font-mono text-slate-800">{practiceEvaluation.time_complexity}</p>
+                        </div>
+                        {practiceEvaluation.space_complexity && (
+                          <div className="bg-slate-50 rounded-xl p-3">
+                            <p className="text-xs font-bold text-slate-600 mb-0.5">Space Complexity</p>
+                            <p className="text-sm font-mono text-slate-800">{practiceEvaluation.space_complexity}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {practiceEvalError && (
+                      <p className="text-xs text-red-600">{practiceEvalError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Navigation */}
+                <div className="flex items-center justify-between">
+                  <button onClick={prevPracticeQuestion}
+                    disabled={practiceCurrentIndex === 0}
+                    className="text-sm text-slate-600 border border-slate-200 px-4 py-2 rounded-xl font-semibold hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  <button onClick={nextPracticeQuestion}
+                    disabled={!practiceEvaluation}
+                    className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                    {practiceCurrentIndex === practiceQuestions.length - 1 ? "Finish" : "Next Question"} <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* No questions generated */}
+          {!practiceLoading && !practiceError && !practiceComplete && practiceQuestions.length === 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+              <AlertCircle size={28} className="text-slate-300 mx-auto mb-2" />
+              <p className="font-bold text-slate-700 mb-1">No questions generated</p>
+              <p className="text-sm text-slate-500 mb-4">Try another topic or check your connection.</p>
+              <button onClick={exitPractice}
+                className="text-sm text-indigo-600 font-semibold hover:underline">Back to Preparation</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── NORMAL PREPARATION CONTENT ─── */}
+      {!practiceActive && (<>
         <div className="flex items-center gap-2 mb-2">
           <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <Brain size={18} />
@@ -1237,9 +1818,8 @@ console.log("Interview Intelligence:", result);
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
 <div className="flex items-center justify-between flex-wrap gap-3">
   <div>
     <h1 className="text-2xl font-bold text-slate-900">
@@ -1464,7 +2044,10 @@ console.log("Interview Intelligence:", result);
       ? 30
       : 55}% confidence
                       </span>
-                    <button className="text-xs text-indigo-600 font-semibold hover:underline">Practice →</button>
+                    <button
+                      onClick={() => startPractice(tp.name, roadmapRounds[roundTab].name, roadmapRounds[roundTab].type)}
+                      className="text-xs text-indigo-600 font-semibold hover:underline"
+                    >Practice →</button>
                   </div>
                 </div>
               ))}
@@ -1558,6 +2141,7 @@ console.log("Interview Intelligence:", result);
           </div>
         )}
       </div>
+      </>)}
     </div>
   );
 }
@@ -2642,7 +3226,7 @@ const NAV = [
 
 function Sidebar({ cur, onNav, collapsed, onToggle }: { cur: Page; onNav: (p: Page) => void; collapsed: boolean; onToggle: () => void }) {
   return (
-    <aside className={`bg-white border-r border-slate-200 flex flex-col flex-shrink-0 min-h-screen transition-all duration-200 ${collapsed ? "w-16" : "w-58"}`}
+    <aside className={`bg-white border-r border-slate-200 flex flex-col flex-shrink-0 sticky top-0 h-screen ${collapsed ? "w-16" : "w-58"}`}
       style={{ width: collapsed ? 64 : 232 }}>
       <div className={`flex items-center gap-2.5 p-4 border-b border-slate-100 ${collapsed ? "justify-center" : ""}`}>
         <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -2676,18 +3260,6 @@ function Sidebar({ cur, onNav, collapsed, onToggle }: { cur: Page; onNav: (p: Pa
           </button>
         ))}
       </nav>
-
-      {!collapsed && (
-        <div className="p-4 border-t border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-extrabold text-sm flex-shrink-0">A</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-800 truncate">Student</p>
-              <p className="text-xs text-slate-500 truncate">InterviewIQ</p>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

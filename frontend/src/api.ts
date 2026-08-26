@@ -105,3 +105,48 @@ export async function analyzeResume(
 
   return response.json();
 }
+
+export async function generatePracticeQuestions(
+  company: string,
+  topic: string,
+  round: string,
+  role: string,
+  count: number = 5
+) {
+  const response = await fetch(`${API_URL}/api/practice/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ company, topic, round, role, count }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const message = errorData?.detail || "Failed to generate practice questions";
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function evaluatePracticeAnswer(
+  company: string,
+  role: string,
+  topic: string,
+  question: string,
+  user_answer: string,
+  question_type: string = "technical"
+) {
+  const response = await fetch(`${API_URL}/api/practice/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ company, role, topic, question, user_answer, question_type }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const message = errorData?.detail || "Failed to evaluate answer";
+    throw new Error(message);
+  }
+
+  return response.json();
+}

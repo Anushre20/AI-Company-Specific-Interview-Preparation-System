@@ -226,3 +226,139 @@ Return ONLY valid JSON in this exact structure (no markdown, no code fences):
     "disclaimer": "This is an AI-estimated ATS compatibility analysis, not a score from the company's actual ATS."
 }}
 """
+
+
+def build_practice_generation_prompt(company, role, round_type, topic, context, count=5):
+    return f"""
+You are an expert AI interviewer conducting a company-specific mock interview practice session.
+
+Generate {count} practice questions for the following context:
+
+Company: {company}
+Role: {role}
+Interview Round: {round_type}
+Topic: {topic}
+
+Use the evidence below to generate questions that are SPECIFIC to this company.
+Do NOT generate generic interview questions. Every question must be grounded in the provided evidence about {company}.
+
+Classify each question by its appropriate type based on the topic:
+
+For DSA/Coding topics (Arrays, Trees, Graphs, DP, Strings, etc.):
+Return type "coding" with: question, difficulty, company_relevance, hint, expected_approach, key_concepts
+
+For technical subjects (DBMS, OS, CN, OOP, System Design, SQL, React, JavaScript, etc.):
+Return type "technical" with: question, difficulty, company_relevance, expected_concepts, key_points
+
+For behavioral/HR topics (Behavioral, HR, Managerial, Culture Fit, Project Discussion):
+Return type "behavioral" with: question, company_relevance, what_interviewer_is_testing, strong_answer_points
+
+IMPORTANT RULES:
+- Do NOT fabricate interview questions that have no connection to the evidence.
+- Questions must reflect the actual difficulty level reported for {company} interviews.
+- Company relevance must reference specific evidence when possible.
+- For coding questions, hints should guide thinking without giving away the solution.
+- For behavioral questions, the "strong_answer_points" should be revealed only after submission.
+- Return ONLY valid JSON, no markdown code fences.
+
+Return a JSON object in this exact structure:
+
+{{
+    "company": "{company}",
+    "role": "{role}",
+    "round": "{round_type}",
+    "topic": "{topic}",
+    "questions": [
+        {{
+            "type": "coding | technical | behavioral",
+            "question": "The practice question text",
+            "difficulty": "Easy | Medium | Hard",
+            "company_relevance": "Why this question matters for {company} specifically, based on available evidence",
+            "hint": "A helpful hint that guides without revealing the answer",
+            "expected_approach": "The expected approach or methodology (for coding/technical)",
+            "key_concepts": ["concept1", "concept2"],
+            "expected_concepts": ["concept1", "concept2"],
+            "key_points": ["key point the answer should cover"],
+            "what_interviewer_is_testing": "What the interviewer evaluates (for behavioral)",
+            "strong_answer_points": ["point1", "point2"]
+        }}
+    ],
+    "sources_summary": [
+        {{
+            "name": "source name",
+            "type": "official | reported | other",
+            "url": "source url if available"
+        }}
+    ],
+    "disclaimer": "Questions are generated from available interview evidence and may not reflect the exact questions asked by {company}."
+}}
+
+EVIDENCE:
+{context}
+"""
+
+
+def build_practice_evaluation_prompt(company, role, topic, question, question_type, user_answer, context=""):
+    return f"""
+You are an expert AI interview evaluator for {company}.
+
+Evaluate the candidate's answer to the following interview question:
+
+Company: {company}
+Role: {role}
+Topic: {topic}
+Question Type: {question_type}
+
+QUESTION:
+{question}
+
+CANDIDATE'S ANSWER:
+{user_answer}
+
+{"EVIDENCE CONTEXT (use for evaluating company-specific relevance):" + chr(10) + context if context else ""}
+
+Evaluation criteria based on question type:
+
+For CODING questions:
+- Correctness of approach
+- Algorithm choice and reasoning
+- Time/space complexity awareness
+- Edge case consideration
+- Code clarity (if code was provided)
+
+For TECHNICAL questions:
+- Accuracy of concepts explained
+- Depth of technical understanding
+- Clarity of explanation
+- Coverage of key concepts
+- Real-world understanding
+
+For BEHAVIORAL questions:
+- Relevance to the question asked
+- STAR format usage (Situation, Task, Action, Result)
+- Specificity and authenticity of examples
+- Self-awareness and reflection
+- Alignment with company values where applicable
+
+RULES:
+- Be honest and constructive.
+- Score from 1-10.
+- Do not fabricate evaluation — base it only on what the candidate actually wrote.
+- For behavioral questions, note if the answer lacks specificity or seems generic.
+- Missing points should identify specific concepts or evidence the answer lacked.
+- Do NOT give a perfect score unless the answer genuinely deserves it.
+
+Return ONLY valid JSON:
+
+{{
+    "score": 0,
+    "max_score": 10,
+    "overall_feedback": "Brief overall assessment of the answer",
+    "strengths": ["strength1", "strength2"],
+    "improvements": ["area for improvement1", "area for improvement2"],
+    "missing_points": ["missing concept or point1", "missing concept or point2"],
+    "ideal_answer_points": ["key point that a strong answer should include1", "key point2"],
+    "time_complexity": "O(...) (for coding questions only, omit for others)",
+    "space_complexity": "O(...) (for coding questions only, omit for others)"
+}}
+"""

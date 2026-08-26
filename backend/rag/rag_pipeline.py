@@ -10,7 +10,9 @@ from rag.context_builder import build_context
 from rag.prompts import (
     SYSTEM_PROMPT,
     build_rag_prompt,
-    build_interview_intelligence_prompt
+    build_interview_intelligence_prompt,
+    build_practice_generation_prompt,
+    build_practice_evaluation_prompt
 )
 from rag.llm import generate_answer
 
@@ -213,4 +215,143 @@ class RAGPipeline:
             "role": role,
             "analysis": analysis,
             "sources": results
+        }
+
+    def generate_practice_questions(
+        self,
+        company,
+        topic,
+        round_type="Technical",
+        role="SDE / Software Engineering",
+        count=5
+    ):
+
+        query = (
+            f"{company} interview questions {topic} "
+            f"{round_type} round "
+            f"candidate reported experience"
+        )
+
+        # Live web search
+        live_results = self.web_search.search_company(
+            company,
+            max_results=10
+        )
+
+        processed_sources = self.source_processor.process(
+            live_results,
+            company
+        )
+
+        # Semantic retrieval focused on the specific topic
+        results = self.retriever.retrieve_live(
+            query=query,
+            sources=processed_sources,
+            top_k=8
+        )
+
+        # Fallback to local FAISS
+        if not results:
+            results = self.retriever.retrieve(
+                query=query,
+                top_k=5,
+                company=company,
+                role=role
+            )
+
+        context = build_context(results)
+
+        prompt = build_practice_generation_prompt(
+            company=company,
+            role=role,
+            round_type=round_type,
+            topic=topic,
+            context=context,
+            count=count
+        )
+
+        response = generate_answer(
+            "You are an expert AI interviewer. "
+            "Generate company-specific practice questions "
+            "based on available interview evidence. "
+            "Return ONLY valid JSON.",
+            prompt
+        )
+
+        analysis = self._parse_json_response(response)
+
+        return {
+            "company": company,
+            "role": role,
+            "round": round_type,
+            "topic": topic,
+            "questions": analysis,
+            "sources": results
+        }
+
+    def evaluate_practice_answer(
+        self,
+        company,
+        role,
+        topic,
+        question,
+        user_answer,
+        question_type="technical"
+    ):
+
+        query = (
+            f"{company} {topic} interview answer evaluation "
+            f"key concepts expected"
+        )
+
+        # Retrieve relevant context for evaluation
+        live_results = self.web_search.search_company(
+            company,
+            max_results=5
+        )
+
+        processed_sources = self.source_processor.process(
+            live_results,
+            company
+        )
+
+        results = self.retriever.retrieve_live(
+            query=query,
+            sources=processed_sources,
+            top_k=5
+        )
+
+        if not results:
+            results = self.retriever.retrieve(
+                query=query,
+                top_k=3,
+                company=company
+            )
+
+        context = build_context(results)
+
+        prompt = build_practice_evaluation_prompt(
+            company=company,
+            role=role,
+            topic=topic,
+            question=question,
+            question_type=question_type,
+            user_answer=user_answer,
+            context=context
+        )
+
+        response = generate_answer(
+            "You are an expert AI interview evaluator. "
+            "Evaluate the candidate's answer honestly and constructively. "
+            "Return ONLY valid JSON.",
+            prompt
+        )
+
+        evaluation = self._parse_json_response(response)
+
+        return {
+            "company": company,
+            "topic": topic,
+            "question": question,
+            "evaluation": evaluation
         }

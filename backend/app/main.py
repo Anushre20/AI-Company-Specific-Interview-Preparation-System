@@ -136,4 +136,83 @@ async def analyze_resume(
         )
 
 
-    
+class PracticeGenerateRequest(BaseModel):
+    company: str
+    topic: str
+    round: str = "Technical"
+    role: str = "SDE / Software Engineering"
+    count: int = 5
+
+
+@app.post("/api/practice/generate")
+def practice_generate(request: PracticeGenerateRequest):
+
+    if not request.company or not request.company.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Company name is required."
+        )
+
+    if not request.topic or not request.topic.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Topic is required."
+        )
+
+    count = max(1, min(request.count, 10))
+
+    try:
+        result = rag_pipeline.generate_practice_questions(
+            company=request.company.strip(),
+            topic=request.topic.strip(),
+            round_type=request.round.strip(),
+            role=request.role.strip(),
+            count=count
+        )
+
+        return result
+
+    except Exception as e:
+        print(f"Practice generation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate practice questions. Please try again."
+        )
+
+
+class PracticeEvaluateRequest(BaseModel):
+    company: str
+    role: str = "SDE / Software Engineering"
+    topic: str
+    question: str
+    user_answer: str
+    question_type: str = "technical"
+
+
+@app.post("/api/practice/evaluate")
+def practice_evaluate(request: PracticeEvaluateRequest):
+
+    if not request.user_answer or not request.user_answer.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide an answer to evaluate."
+        )
+
+    try:
+        result = rag_pipeline.evaluate_practice_answer(
+            company=request.company.strip(),
+            role=request.role.strip(),
+            topic=request.topic.strip(),
+            question=request.question.strip(),
+            user_answer=request.user_answer.strip(),
+            question_type=request.question_type.strip()
+        )
+
+        return result
+
+    except Exception as e:
+        print(f"Practice evaluation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to evaluate answer. Please try again."
+        )
