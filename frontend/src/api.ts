@@ -81,3 +81,27 @@ export async function getInterviewIntelligence(
 
   return response.json();
 }
+
+export async function analyzeResume(
+  resumeFile: File,
+  company: string,
+  role: string
+) {
+  const formData = new FormData();
+  formData.append("resume", resumeFile);
+  formData.append("company", company);
+  formData.append("role", role);
+
+  const response = await fetch(`${API_URL}/api/resume/analyze`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const message = errorData?.detail || "Failed to analyze resume";
+    throw new Error(message);
+  }
+
+  return response.json();
+}

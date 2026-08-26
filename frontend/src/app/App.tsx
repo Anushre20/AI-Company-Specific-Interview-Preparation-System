@@ -4,7 +4,8 @@ import {
   getCompanies,
   getQuestions,
   askRAG,
-  getInterviewIntelligence
+  getInterviewIntelligence,
+  analyzeResume,
 } from "../api";
 import {
   LayoutDashboard, Building2, BookOpen, MessageSquare, HelpCircle,
@@ -13,7 +14,7 @@ import {
   ArrowRight, Menu, ChevronRight, ChevronLeft, Brain, Lightbulb,
   Globe, Info, Send, ThumbsUp, Briefcase, Code2, TrendingDown,
   AlertTriangle, Plus, Sparkles, Trophy, Zap, Shield, Users,
-  ExternalLink, RotateCcw, Check, XCircle, Hash,
+  ExternalLink, RotateCcw, Check, XCircle, Hash, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -532,7 +533,7 @@ function DashboardPage({ onNav }: { onNav: (p: Page) => void }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Welcome back, Aryan · Thursday, 12 June 2025</p>
+          <p className="text-slate-500 text-sm mt-0.5">Welcome back</p>
         </div>
         <button onClick={() => onNav("companies")} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
           <Plus size={15} /> Add Target Company
@@ -2053,43 +2054,160 @@ function ProgressPage() {
 // ─── RESUME PAGE ───────────────────────────────────────────────────────────────
 
 function ResumePage() {
-  const [state, setState] = useState<"upload" | "loading" | "done">("upload");
-  const [progress, setProgress] = useState(0);
+  const [view, setView] = useState<"form" | "loading" | "results" | "error">("form");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [loadingMsg, setLoadingMsg] = useState("Uploading resume...");
+  const [error, setError] = useState("");
+  const [results, setResults] = useState<any>(null);
+  const [companyList, setCompanyList] = useState<any[]>([]);
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [expandedSuggestion, setExpandedSuggestion] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpload = () => {
-    setState("loading");
-    setProgress(0);
+  useEffect(() => {
+    getCompanies().then(setCompanyList).catch(() => {});
+  }, []);
+
+  const filteredCompanies = companyList.filter(c =>
+    c.name.toLowerCase().includes(companySearch.toLowerCase())
+  );
+
+  const handleAnalyze = async () => {
+    if (!company.trim()) { setError("Please enter a company name."); setView("error"); return; }
+    if (!role.trim()) { setError("Please enter a target role."); setView("error"); return; }
+    if (!selectedFile) { setError("Please upload your resume as a PDF."); setView("error"); return; }
+    if (!selectedFile.name.toLowerCase().endsWith(".pdf")) { setError("Only PDF files are supported."); setView("error"); return; }
+
+    setView("loading");
+    setError("");
+
+    const steps = ["Uploading resume...", "Extracting text from PDF...", "Researching company requirements...", "Matching skills and keywords...", "Generating ATS analysis..."];
+    let step = 0;
     const interval = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) { clearInterval(interval); setState("done"); return 100; }
-        return p + 10;
-      });
-    }, 200);
+      step++;
+      if (step < steps.length) setLoadingMsg(steps[step]);
+    }, 4000);
+
+    try {
+      const data = await analyzeResume(selectedFile, company.trim(), role.trim());
+      clearInterval(interval);
+      if (data.analysis?.error) {
+        setError(data.analysis.raw_response || "Analysis returned an error. Please try again.");
+        setView("error");
+      } else {
+        setResults(data.analysis);
+        setView("results");
+      }
+    } catch (err: any) {
+      clearInterval(interval);
+      setError(err.message || "Analysis failed. Please try again.");
+      setView("error");
+    }
   };
 
-  if (state === "upload") return (
+  const resetForm = () => {
+    setView("form");
+    setCompany("");
+    setRole("");
+    setSelectedFile(null);
+    setResults(null);
+    setError("");
+    setCompanySearch("");
+  };
+
+  if (view === "form") return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Resume Analyzer</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Upload your resume for AI-powered company match scores and skill gap analysis</p>
+        <h1 className="text-2xl font-bold text-slate-900">Resume ATS Analyzer</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Upload your resume for an AI-estimated ATS compatibility analysis against a specific company and role</p>
       </div>
-      <div onClick={handleUpload}
-        className="border-2 border-dashed border-indigo-200 rounded-2xl p-16 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all group">
-        <Upload size={44} className="text-indigo-200 group-hover:text-indigo-400 mx-auto mb-4 transition-colors" />
-        <h2 className="text-lg font-bold text-slate-900 mb-1">Upload Your Resume</h2>
-        <p className="text-sm text-slate-500 mb-5">Drag & drop or click · PDF, DOCX · max 5 MB</p>
-        <button className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors">
-          Select File
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+        <div>
+          <label className="text-sm font-bold text-slate-800 mb-1.5 block">Company</label>
+          <div className="relative">
+            <input
+              value={company}
+              onChange={e => { setCompany(e.target.value); setCompanySearch(e.target.value); setShowCompanyDropdown(true); }}
+              onFocus={() => setShowCompanyDropdown(true)}
+              placeholder="e.g. Google, Sprinklr, Atlassian..."
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+            />
+            {showCompanyDropdown && companySearch && filteredCompanies.length > 0 && (
+              <div className="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-auto">
+                {filteredCompanies.slice(0, 8).map(c => (
+                  <button key={c.id || c.name} onClick={() => { setCompany(c.name); setShowCompanyDropdown(false); setCompanySearch(""); }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 transition-colors flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: c.color }}>{c.abbr || c.name[0]}</div>
+                    <span className="font-medium text-slate-800">{c.name}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{c.sector}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showCompanyDropdown && (
+              <button onClick={() => setShowCompanyDropdown(false)} className="fixed inset-0 z-10" tabIndex={-1} />
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-1">Type any company name — it works for companies not in our database too</p>
+        </div>
+
+        <div>
+          <label className="text-sm font-bold text-slate-800 mb-1.5 block">Target Role</label>
+          <input
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            placeholder="e.g. Software Engineer, SDE Intern, ML Engineer..."
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-bold text-slate-800 mb-1.5 block">Upload Resume</label>
+          <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) setSelectedFile(f); }} />
+          <div onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-indigo-200 rounded-2xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all group">
+            {selectedFile ? (
+              <div className="flex items-center justify-center gap-3">
+                <FileText size={24} className="text-indigo-600" />
+                <div className="text-left">
+                  <p className="text-sm font-bold text-slate-800">{selectedFile.name}</p>
+                  <p className="text-xs text-slate-400">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <button onClick={e => { e.stopPropagation(); setSelectedFile(null); }}
+                  className="ml-2 p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                  <XCircle size={16} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <Upload size={36} className="text-indigo-200 group-hover:text-indigo-400 mx-auto mb-3 transition-colors" />
+                <p className="text-sm font-bold text-slate-800 mb-1">Click to upload your resume</p>
+                <p className="text-xs text-slate-400">PDF only</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <button onClick={handleAnalyze}
+          disabled={!company.trim() || !role.trim() || !selectedFile}
+          className="w-full bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <Brain size={16} /> Analyze Resume
         </button>
       </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <h3 className="font-bold text-slate-800 mb-3">What you will receive:</h3>
         <div className="space-y-2">
           {[
-            [Target, "Company-specific match score for each target company"],
-            [AlertTriangle, "Skill gap analysis with specific missing skills and priority"],
-            [HelpCircle, "Likely interview questions based on your experience"],
-            [Lightbulb, "Resume improvement suggestions per company"],
+            [Target, "AI-estimated ATS compatibility score (0-100)"],
+            [CheckCircle2, "Keyword match analysis — matched, missing, and weak keywords"],
+            [AlertCircle, "Line-by-line resume improvement suggestions"],
+            [Lightbulb, "Company-specific recommendations tailored to the role"],
           ].map(([Icon, text]) => (
             <div key={String(text)} className="flex items-center gap-3 text-sm text-slate-600">
               <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
@@ -2103,112 +2221,210 @@ function ResumePage() {
     </div>
   );
 
-  if (state === "loading") return (
+  if (view === "loading") return (
     <div className="flex flex-col items-center justify-center min-h-96 gap-5">
       <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
       <div className="text-center">
         <h2 className="text-lg font-bold text-slate-900 mb-1">Analyzing your resume...</h2>
-        <p className="text-slate-500 text-sm">Running RAG analysis against company requirements</p>
+        <p className="text-slate-500 text-sm">{loadingMsg}</p>
       </div>
-      <div className="w-64 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
-      </div>
-      <p className="text-xs text-slate-400">{progress}% complete</p>
     </div>
   );
+
+  if (view === "error") return (
+    <div className="flex flex-col items-center justify-center min-h-96 gap-5 max-w-md mx-auto text-center">
+      <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center">
+        <AlertCircle size={30} className="text-red-500" />
+      </div>
+      <div>
+        <h2 className="text-lg font-bold text-slate-900 mb-1">Analysis Failed</h2>
+        <p className="text-slate-500 text-sm">{error}</p>
+      </div>
+      <button onClick={resetForm} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2">
+        <RotateCcw size={14} /> Try Again
+      </button>
+    </div>
+  );
+
+  // ─── RESULTS VIEW ────────────────────────────────────────────────────────
+  const a = results || {};
+  const score = a.ats_score || 0;
+  const breakdown = a.score_breakdown || {};
+  const scoreColor = score >= 75 ? "text-emerald-600" : score >= 50 ? "text-amber-600" : "text-red-600";
+  const scoreRing = score >= 75 ? "stroke-emerald-500" : score >= 50 ? "stroke-amber-500" : "stroke-red-500";
+  const breakdownLabels: Record<string, string> = {
+    keyword_match: "Keyword Match", technical_alignment: "Technical Alignment",
+    role_alignment: "Role Alignment", responsibility_alignment: "Responsibility Alignment",
+    resume_clarity: "Resume Clarity", overall_relevance: "Overall Relevance",
+  };
+
+  const r = 60, circ = 2 * Math.PI * r, filled = (score / 100) * circ;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Resume Analysis</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Aryan_Sharma_Resume.pdf · Analyzed just now · 3 pages</p>
+          <p className="text-slate-500 text-sm mt-0.5">{selectedFile?.name} &middot; {company} &middot; {role}</p>
         </div>
-        <button onClick={() => setState("upload")} className="text-sm text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl font-semibold hover:bg-indigo-50 transition-colors">
-          Upload New Resume
+        <button onClick={resetForm} className="text-sm text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl font-semibold hover:bg-indigo-50 transition-colors flex items-center gap-1.5">
+          <RotateCcw size={14} /> New Analysis
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-bold text-slate-800 mb-4">Company Match Scores</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {[
-            [COMPANIES_DATA[1], 84, "Excellent Match"], [COMPANIES_DATA[4], 81, "Strong Match"],
-            [COMPANIES_DATA[0], 78, "Strong Match"], [COMPANIES_DATA[2], 72, "Good Match"],
-            [COMPANIES_DATA[3], 58, "Partial Match"], [COMPANIES_DATA[5], 95, "Top Match"],
-          ].map(([c, sc, lv]) => {
-            const company = c as (typeof COMPANIES_DATA)[0];
-            const score = sc as number;
-            const level = lv as string;
-            return (
-              <div key={company.id} className="flex items-center gap-3 p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
-                <CompanyAvatar company={company} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800">{company.name}</p>
-                  <p className="text-xs text-slate-500">{level}</p>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                    <div className={`h-full rounded-full ${score >= 80 ? "bg-emerald-500" : score >= 65 ? "bg-indigo-500" : "bg-amber-400"}`} style={{ width: `${score}%` }} />
-                  </div>
-                </div>
-                <span className="font-extrabold text-slate-900">{score}%</span>
-              </div>
-            );
-          })}
+      {/* ATS Score Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative flex items-center justify-center" style={{ width: 148, height: 148 }}>
+          <svg width={148} height={148} className="-rotate-90">
+            <circle cx={74} cy={74} r={r} fill="none" stroke="#E2E8F0" strokeWidth={11} />
+            <circle cx={74} cy={74} r={r} fill="none" className={scoreRing} strokeWidth={11}
+              strokeLinecap="round" strokeDasharray={`${filled} ${circ}`} />
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className={`text-4xl font-extrabold ${scoreColor}`}>{score}</span>
+            <span className="text-xs text-slate-400 font-medium">/ 100</span>
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><CheckCircle2 size={17} className="text-emerald-600" /> Skills Detected</h2>
-          <div className="flex flex-wrap gap-2">
-            {["Python", "C++", "JavaScript", "React", "Node.js", "SQL", "Machine Learning", "REST APIs", "Git", "Docker", "Linux", "Data Structures", "Algorithms", "TensorFlow"].map(s => (
-              <span key={s} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold">{s}</span>
+        <div className="flex-1">
+          <h2 className="font-bold text-slate-900 text-lg mb-1">AI-Estimated ATS Score</h2>
+          <p className="text-sm text-slate-500 mb-3">{a.company} &middot; {a.role}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {Object.entries(breakdown).map(([k, v]) => (
+              <div key={k} className="bg-slate-50 rounded-xl px-3 py-2">
+                <p className="text-xs text-slate-500">{breakdownLabels[k] || k}</p>
+                <p className="text-sm font-bold text-slate-800">{String(v)}/100</p>
+              </div>
             ))}
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><AlertCircle size={17} className="text-amber-600" /> Skill Gaps (Google SWE)</h2>
+      </div>
+
+      {/* Keywords */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" /> Matched Keywords</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {(a.matched_keywords || []).length === 0 && <p className="text-xs text-slate-400">None found</p>}
+            {(a.matched_keywords || []).map((kw: string) => (
+              <span key={kw} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold">{kw}</span>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><AlertCircle size={16} className="text-amber-600" /> Missing Keywords</h3>
           <div className="space-y-2">
-            {[
-              { s: "System Design", p: "High", a: "Study distributed systems, CAP theorem, and scalability patterns" },
-              { s: "Golang / Rust", p: "Medium", a: "Google values systems programming languages on some teams" },
-              { s: "Kubernetes / GCP", p: "Medium", a: "Cloud-native familiarity is a strong differentiator" },
-              { s: "Low-Level Programming", p: "Low", a: "Good to have for infrastructure-focused roles" },
-            ].map(({ s, p, a }) => (
-              <div key={s} className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+            {(a.missing_keywords || []).length === 0 && <p className="text-xs text-slate-400">None found</p>}
+            {(a.missing_keywords || []).map((kw: any) => (
+              <div key={kw.keyword} className="p-2.5 bg-amber-50 rounded-xl border border-amber-100">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-bold text-slate-800">{s}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${p === "High" ? "bg-red-100 text-red-700" : p === "Medium" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{p}</span>
+                  <span className="text-sm font-bold text-slate-800">{kw.keyword}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${kw.importance === "High" ? "bg-red-100 text-red-700" : kw.importance === "Medium" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{kw.importance}</span>
                 </div>
-                <p className="text-xs text-slate-600">{a}</p>
+                <p className="text-xs text-slate-600">{kw.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><AlertTriangle size={16} className="text-slate-500" /> Weak Keywords</h3>
+          <div className="space-y-2">
+            {(a.weak_keywords || []).length === 0 && <p className="text-xs text-slate-400">None found</p>}
+            {(a.weak_keywords || []).map((kw: any) => (
+              <div key={kw.keyword} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-sm font-bold text-slate-800">{kw.keyword}</span>
+                <p className="text-xs text-slate-600 mt-0.5">{kw.reason}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-bold text-slate-800 mb-1 flex items-center gap-2">
-          <Brain size={17} className="text-indigo-600" /> Likely Questions Based on Your Resume
-        </h2>
-        <p className="text-xs text-slate-500 mb-4">Predicted via RAG analysis of your skills and experience against company interview patterns.</p>
-        <div className="space-y-3">
-          {[
-            { q: "Walk me through your machine learning project. How did you handle class imbalance and model evaluation?", tag: "ML Project", src: "ai-prediction" as Source },
-            { q: "In your React project, how did you manage state at scale? When would you reach for Redux vs Context API?", tag: "React Experience", src: "ai-prediction" as Source },
-            { q: "You have REST API experience — design a feed API for a social platform that serves 50M users.", tag: "API Background", src: "ai-prediction" as Source },
-            { q: "What is the most complex SQL query you have written? How would you optimize it for billions of rows?", tag: "SQL Skills", src: "ai-prediction" as Source },
-          ].map(({ q, tag, src }) => (
-            <div key={q} className="p-4 border border-slate-100 rounded-xl hover:border-slate-200 transition-colors">
-              <div className="flex items-center gap-2 mb-2">
-                <SourceBadge type={src} />
-                <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-semibold">From your {tag}</span>
-              </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{q}</p>
-            </div>
-          ))}
+      {/* Strengths & Weaknesses */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" /> Strengths</h3>
+          <ul className="space-y-2">
+            {(a.strengths || []).map((s: string, i: number) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                <Check size={14} className="text-emerald-500 mt-0.5 flex-shrink-0" /> {s}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><AlertCircle size={16} className="text-amber-600" /> Weaknesses</h3>
+          <ul className="space-y-2">
+            {(a.weaknesses || []).map((w: string, i: number) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                <AlertTriangle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" /> {w}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
+
+      {/* Line-by-Line Suggestions */}
+      {(a.line_by_line_suggestions || []).length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><FileText size={16} className="text-indigo-600" /> Line-by-Line Improvements</h3>
+          <div className="space-y-3">
+            {a.line_by_line_suggestions.map((s: any, i: number) => (
+              <div key={i} className="border border-slate-100 rounded-xl overflow-hidden">
+                <button onClick={() => setExpandedSuggestion(expandedSuggestion === i ? null : i)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{s.section}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${s.impact === "High" ? "bg-red-100 text-red-700" : s.impact === "Medium" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{s.impact}</span>
+                    </div>
+                    <p className="text-sm text-slate-500 truncate">{s.original}</p>
+                  </div>
+                  {expandedSuggestion === i ? <ChevronUp size={16} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={16} className="text-slate-400 flex-shrink-0" />}
+                </button>
+                {expandedSuggestion === i && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-red-600 mb-1">Current:</p>
+                      <p className="text-sm text-slate-700">{s.original}</p>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-emerald-600 mb-1">Suggested:</p>
+                      <p className="text-sm text-slate-700">{s.suggested}</p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-slate-600 mb-1">Reason:</p>
+                      <p className="text-sm text-slate-600">{s.reason}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Company-Specific Recommendations */}
+      {(a.company_specific_recommendations || []).length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Sparkles size={16} className="text-indigo-600" /> Company-Specific Recommendations</h3>
+          <ul className="space-y-2">
+            {a.company_specific_recommendations.map((r: string, i: number) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                <ArrowRight size={14} className="text-indigo-500 mt-0.5 flex-shrink-0" /> {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Final Verdict */}
+      {a.final_verdict && (
+        <div className="bg-indigo-50 rounded-2xl border border-indigo-200 p-6">
+          <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2"><Trophy size={16} /> Final Verdict</h3>
+          <p className="text-sm text-indigo-800 leading-relaxed">{a.final_verdict}</p>
+          {a.disclaimer && <p className="text-xs text-indigo-500 mt-3 italic">{a.disclaimer}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -2310,7 +2526,7 @@ function SettingsPage() {
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h2 className="font-bold text-slate-800 mb-4">Profile</h2>
         <div className="grid grid-cols-2 gap-4">
-          {[["Full Name", "Aryan Sharma", "text"], ["Email", "aryan.sharma@iitb.ac.in", "email"], ["College", "IIT Bombay", "text"], ["Target Role", "Software Engineer", "text"]].map(([l, v, t]) => (
+          {[["Full Name", "", "text"], ["Email", "", "email"], ["College", "", "text"], ["Target Role", "", "text"]].map(([l, v, t]) => (
             <div key={String(l)}>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">{l}</label>
               <input defaultValue={v} type={t} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -2466,8 +2682,8 @@ function Sidebar({ cur, onNav, collapsed, onToggle }: { cur: Page; onNav: (p: Pa
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-extrabold text-sm flex-shrink-0">A</div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-800 truncate">Aryan Sharma</p>
-              <p className="text-xs text-slate-500 truncate">IIT Bombay · CSE · 2025</p>
+              <p className="text-sm font-bold text-slate-800 truncate">Student</p>
+              <p className="text-xs text-slate-500 truncate">InterviewIQ</p>
             </div>
           </div>
         </div>

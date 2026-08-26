@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from data.companies import companies
 from data.questions import questions
 from rag.rag_pipeline import RAGPipeline
+from app.resume_analyzer import ResumeAnalyzer
 
 app = FastAPI(
     title="InterviewIQ API",
@@ -12,6 +13,7 @@ app = FastAPI(
     version="1.0.0"
 )
 rag_pipeline = RAGPipeline()
+resume_analyzer = ResumeAnalyzer()
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,6 +80,60 @@ def interview_intelligence(
     )
 
     return result
+
+
+@app.post("/api/resume/analyze")
+async def analyze_resume(
+    resume: UploadFile = File(...),
+    company: str = Form(...),
+    role: str = Form(...)
+):
+    if not company or not company.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Company name is required."
+        )
+
+    if not role or not role.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Target role is required."
+        )
+
+    if not resume.filename or not resume.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported."
+        )
+
+    try:
+        pdf_bytes = await resume.read()
+
+        if len(pdf_bytes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty."
+            )
+
+        result = resume_analyzer.analyze(
+            pdf_bytes=pdf_bytes,
+            company=company.strip(),
+            role=role.strip()
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        print(f"Resume analysis error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Resume analysis failed. Please try again."
+        )
 
 
     
