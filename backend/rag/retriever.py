@@ -15,7 +15,15 @@ METADATA_PATH = VECTOR_STORE_PATH / "metadata.json"
 
 class InterviewRetriever:
 
-    def __init__(self):
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
+
+    def _initialize(self):
         print("Loading embedding model...")
 
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
