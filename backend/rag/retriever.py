@@ -3,7 +3,8 @@ from pathlib import Path
 import json
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import faiss
-from sentence_transformers import SentenceTransformer
+import numpy as np
+from fastembed import TextEmbedding
 
 from rag.context_builder import build_context
 
@@ -26,7 +27,10 @@ class InterviewRetriever:
     def _initialize(self):
         print("Loading embedding model...")
 
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.model = TextEmbedding(
+            "sentence-transformers/all-MiniLM-L6-v2",
+            threads=2,
+        )
 
         print("Loading FAISS index...")
 
@@ -47,10 +51,8 @@ class InterviewRetriever:
         round_name=None
     ):
 
-        query_embedding = self.model.encode(
-            [query],
-            convert_to_numpy=True
-        )
+        embeddings = list(self.model.embed([query]))
+        query_embedding = np.asarray(embeddings[0], dtype=np.float32).reshape(1, -1)
 
     # Retrieve extra candidates because some
     # will be removed by metadata filters.
@@ -127,17 +129,13 @@ class InterviewRetriever:
             for document in documents
         ]
 
-        embeddings = self.model.encode(
-            texts,
-            convert_to_numpy=True
-        )
+        doc_embeddings = list(self.model.embed(texts))
+        embeddings = np.asarray(doc_embeddings, dtype=np.float32)
 
-        query_embedding = self.model.encode(
-            [query],
-            convert_to_numpy=True
-        )
+        query_embeddings = list(self.model.embed([query]))
+        query_embedding = np.asarray(query_embeddings[0], dtype=np.float32)
 
-        similarities = embeddings @ query_embedding[0]
+        similarities = embeddings @ query_embedding
 
         authority_scores = [
             document.get("authority_score", 0.40)

@@ -1,5 +1,6 @@
 langchain
 sentence-transformers
+fastembed
 faiss-cpu
 pypdf
 beautifulsoup4
